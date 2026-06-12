@@ -78,9 +78,62 @@ async function main() {
     },
   });
 
+  await seedDemoDeals(workspace.id);
+
   console.log("✅ Seed completo");
   console.log(`   Workspace: ${workspace.name} (${workspace.id})`);
   console.log(`   Login: ${email} / coregrid123`);
+}
+
+// Oportunidades de ejemplo realistas para CoreGrid (soporte IT/Apple),
+// repartidas por las etapas para que el kanban se vea poblado en el demo.
+async function seedDemoDeals(workspaceId: string) {
+  const existing = await db.deal.count({ where: { workspaceId } });
+  if (existing > 0) return; // no duplicar en re-seed
+
+  const demo: Array<{
+    title: string;
+    value: number;
+    stageId: string;
+    customerName: string;
+    customerPhone: string;
+    tags: string[];
+  }> = [
+    { title: "Soporte 12 MacBooks — Agencia Pixela", value: 48000, stageId: "nuevo", customerName: "Pixela Studio", customerPhone: "5512345678", tags: ["Soporte", "VIP"] },
+    { title: "Implementación MDM Mosyle — Tecmilenio", value: 120000, stageId: "contactado", customerName: "Tecmilenio", customerPhone: "8181234567", tags: ["Ventas", "MDM"] },
+    { title: "Migración iCloud Business — Proquifa", value: 35000, stageId: "contactado", customerName: "Proquifa", customerPhone: "5598765432", tags: ["Cloud"] },
+    { title: "Renovación AppleCare — WineAdvisor", value: 22000, stageId: "cotizado", customerName: "WineAdvisor", customerPhone: "3312223344", tags: ["Ventas"] },
+    { title: "Setup 30 iPads aula — Maclearn", value: 89000, stageId: "cotizado", customerName: "Maclearn", customerPhone: "5544556677", tags: ["Educación", "VIP"] },
+    { title: "Auditoría seguridad endpoints — EA", value: 64000, stageId: "negociacion", customerName: "EA México", customerPhone: "5566778899", tags: ["Seguridad"] },
+    { title: "Contrato soporte anual — Proquifa", value: 150000, stageId: "ganado", customerName: "Proquifa", customerPhone: "5598765432", tags: ["Soporte"] },
+    { title: "Reparación lote iMac — Pixela", value: 18000, stageId: "perdido", customerName: "Pixela Studio", customerPhone: "5512345678", tags: [] },
+  ];
+
+  for (const d of demo) {
+    const convo = await db.conversation.create({
+      data: {
+        workspaceId,
+        sessionId: `demo_${Math.random().toString(36).slice(2)}`,
+        name: d.customerName,
+        status: "ACTIVE",
+      },
+    });
+    await db.deal.create({
+      data: {
+        workspaceId,
+        conversationId: convo.id,
+        stageId: d.stageId,
+        title: d.title,
+        value: d.value,
+        currency: "MXN",
+        source: "manual",
+        customerName: d.customerName,
+        customerPhone: d.customerPhone,
+        tags: JSON.stringify(d.tags),
+      },
+    });
+  }
+  console.log(`   ${demo.length} oportunidades demo creadas`);
 }
 
 main()

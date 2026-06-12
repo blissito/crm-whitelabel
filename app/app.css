@@ -12,3 +12,9 @@ body {
   @apply bg-white text-gray-900;
   font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
+
+@layer components {
+  .input {
+    @apply w-full rounded-lg border border-outlines px-3 py-2 text-sm focus:border-brand-500 focus:ring-brand-500;
+  }
+}

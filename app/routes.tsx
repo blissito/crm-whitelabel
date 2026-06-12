@@ -10,6 +10,9 @@ export default [
   route("login", "routes/login.tsx"),
   route("logout", "routes/logout.tsx"),
 
+  // API
+  route("api/v1/crm", "routes/api.v1.crm.ts"),
+
   layout("routes/app.tsx", [
     route("app", "routes/app._index.tsx"),
     route("app/conversaciones", "routes/app.conversaciones.tsx"),
