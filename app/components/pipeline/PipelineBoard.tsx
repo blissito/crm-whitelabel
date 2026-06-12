@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   DragDropContext,
   Droppable,
@@ -8,6 +8,32 @@ import {
   type DraggableStateSnapshot,
 } from "@hello-pangea/dnd";
 import { AnimatePresence } from "framer-motion";
+
+// Grab & pan: arrastrar el fondo del tablero para desplazarlo horizontalmente.
+// No interfiere con el drag&drop de las cards: si el mousedown cae sobre el
+// handle de una card (atributo data-rfd-*), deja que dnd lo maneje.
+function useDragScroll() {
+  const ref = useRef<HTMLDivElement>(null);
+  const st = useRef({ down: false, startX: 0, scrollLeft: 0 });
+
+  const onMouseDown = (e: React.MouseEvent) => {
+    const el = ref.current;
+    if (!el) return;
+    const target = e.target as HTMLElement;
+    if (target.closest("[data-rfd-drag-handle-draggable-id]")) return; // es una card
+    st.current = { down: true, startX: e.pageX, scrollLeft: el.scrollLeft };
+    el.classList.add("cursor-grabbing");
+  };
+  const onMouseMove = (e: React.MouseEvent) => {
+    if (!st.current.down || !ref.current) return;
+    ref.current.scrollLeft = st.current.scrollLeft - (e.pageX - st.current.startX);
+  };
+  const stop = () => {
+    st.current.down = false;
+    ref.current?.classList.remove("cursor-grabbing");
+  };
+  return { ref, onMouseDown, onMouseMove, onMouseUp: stop, onMouseLeave: stop };
+}
 import { cn } from "~/lib/cn";
 import type { PipelineColumn, DealCard, PipelineData } from "server/crm.server";
 import { DealDrawer } from "./DealDrawer";
@@ -165,6 +191,7 @@ export function PipelineBoard({
   onCreateDeal: () => void;
 }) {
   const [selected, setSelected] = useState<DealCard | null>(null);
+  const pan = useDragScroll();
 
   const handleDragEnd = (result: DropResult) => {
     const { source, destination, draggableId } = result;
@@ -198,8 +225,15 @@ export function PipelineBoard({
         </button>
       </div>
 
-      {/* Board con scroll horizontal */}
-      <div className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden p-6">
+      {/* Board: grab & pan horizontal (arrastrar el fondo), barra oculta */}
+      <div
+        ref={pan.ref}
+        onMouseDown={pan.onMouseDown}
+        onMouseMove={pan.onMouseMove}
+        onMouseUp={pan.onMouseUp}
+        onMouseLeave={pan.onMouseLeave}
+        className="no-scrollbar min-w-0 flex-1 cursor-grab select-none overflow-x-auto overflow-y-hidden p-6"
+      >
         <DragDropContext onDragEnd={handleDragEnd}>
           <div className="flex h-full min-w-min gap-4">
             {data.stages.map((stage) => (

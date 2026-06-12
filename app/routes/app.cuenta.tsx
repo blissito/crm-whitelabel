@@ -1,6 +1,13 @@
 import { useState } from "react";
 import { Form, useNavigation } from "react-router";
-import { HiKey, HiClipboard, HiCheck, HiArrowPath } from "react-icons/hi2";
+import {
+  HiKey,
+  HiClipboard,
+  HiCheck,
+  HiArrowPath,
+  HiArrowTopRightOnSquare,
+} from "react-icons/hi2";
+import { SiNpm } from "react-icons/si";
 import type { Route } from "./+types/app.cuenta";
 import { requireWorkspace, generateApiKey } from "server/auth.server";
 import { db } from "~/lib/db.server";
@@ -98,11 +105,36 @@ export default function Cuenta({ loaderData }: Route.ComponentProps) {
 
       {apiKey && (
         <section className="mt-6 rounded-2xl border border-outlines bg-white p-6">
-          <h2 className="text-lg font-semibold text-dark">Configuración del agente (MCP)</h2>
+          <h2 className="text-lg font-semibold text-dark">Conecta tu agente (MCP)</h2>
           <p className="mt-1 text-sm text-gray-500">
             Pega esto en la config MCP de tu agente.
           </p>
           <CopyBlock value={mcpConfig} className="mt-4" />
+
+          {/* Cuadrito descriptivo del paquete + link a npm */}
+          <a
+            href="https://www.npmjs.com/package/coregrid-crm-mcp"
+            target="_blank"
+            rel="noreferrer"
+            className="mt-4 flex items-start gap-3 rounded-xl border border-outlines bg-surface/60 p-4 transition hover:border-brand-300"
+          >
+            <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[#CB3837]/10">
+              <SiNpm className="h-6 w-6 text-[#CB3837]" />
+            </span>
+            <span className="min-w-0">
+              <span className="flex items-center gap-1.5 font-mono text-sm font-semibold text-dark">
+                coregrid-crm-mcp
+                <HiArrowTopRightOnSquare className="h-3.5 w-3.5 text-gray-400" />
+              </span>
+              <span className="mt-0.5 block text-xs text-gray-500">
+                Servidor MCP con tools del pipeline (ver/crear/mover/compartir
+                oportunidades). Tu agente lo opera con tu llave. Publicado en npm.
+              </span>
+              <code className="mt-2 inline-block rounded bg-dark px-2 py-1 font-mono text-[11px] text-white/90">
+                npx -y coregrid-crm-mcp
+              </code>
+            </span>
+          </a>
         </section>
       )}
     </div>
