@@ -36,6 +36,7 @@ model Workspace {
   escalations      EscalationRequest[]
   whatsappChannels WhatsAppChannel[]
   shareLinks       ShareLink[]
+  invitations      Invitation[]
 }
 
 // ─── AUTH (email/password) ───────────────────────────────────────────────
@@ -317,6 +318,22 @@ model ShareLink {
   dealId      String? // si kind=deal
   expiresAt   DateTime? // null = sin expiración
   createdAt   DateTime  @default(now())
+
+  @@index([workspaceId])
+}
+
+// ─── INVITACIONES (seats por link con token) ─────────────────────────────
+model Invitation {
+  id             String    @id @default(cuid())
+  token          String    @unique
+  workspaceId    String
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  role           String    @default("MEMBER") // rol con el que entra el seat
+  email          String? // opcional (pre-fill)
+  invitedByEmail String?
+  expiresAt      DateTime?
+  acceptedAt     DateTime? // null = pendiente
+  createdAt      DateTime  @default(now())
 
   @@index([workspaceId])
 }

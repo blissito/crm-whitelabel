@@ -13,6 +13,7 @@ export default [
 
   // Público (solo-lectura por token)
   route("s/:token", "routes/s.$token.tsx"),
+  route("invite/:token", "routes/invite.$token.tsx"),
 
   // API
   route("api/v1/crm", "routes/api.v1.crm.ts"),
@@ -24,6 +25,7 @@ export default [
     route("app/contactos", "routes/app.contactos.tsx"),
     route("app/pipeline", "routes/app.pipeline.tsx"),
     route("app/escalaciones", "routes/app.escalaciones.tsx"),
+    route("app/equipo", "routes/app.equipo.tsx"),
     route("app/cuenta", "routes/app.cuenta.tsx"),
   ]),
 ] satisfies RouteConfig;
