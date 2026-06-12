@@ -1,5 +1,5 @@
 import type { Route } from "./+types/api.v1.crm";
-import { requireWorkspaceId } from "server/auth.server";
+import { requireApiContext } from "server/auth.server";
 import {
   getPipeline,
   createDeal,
@@ -10,20 +10,23 @@ import {
 } from "server/crm.server";
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const workspaceId = await requireWorkspaceId(request);
+  const { workspaceId } = await requireApiContext(request);
   const data = await getPipeline(workspaceId);
   return Response.json(data);
 }
 
 export async function action({ request }: Route.ActionArgs) {
-  const workspaceId = await requireWorkspaceId(request);
+  const { workspaceId, userEmail } = await requireApiContext(request);
   const body = await request.json();
   const intent = body.intent as string;
 
   try {
     switch (intent) {
       case "create_deal": {
-        const deal = await createDeal(workspaceId, body.deal as DealInput);
+        const input = body.deal as DealInput;
+        // Atribuir al dueño de la llave si no se indicó vendedor.
+        if (userEmail && input.assignedTo === undefined) input.assignedTo = userEmail;
+        const deal = await createDeal(workspaceId, input);
         return Response.json({ ok: true, dealId: deal.id });
       }
       case "update_deal": {

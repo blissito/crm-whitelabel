@@ -1,12 +1,6 @@
 import { Form, Link, redirect, useNavigation } from "react-router";
 import type { Route } from "./+types/register";
-import {
-  getUserId,
-  register,
-  createUserSession,
-  getDefaultWorkspaceId,
-} from "server/auth.server";
-import { UserRole } from "~/lib/enums";
+import { getUserId, registerNewTenant, createUserSession } from "server/auth.server";
 
 export function meta() {
   return [{ title: "Crear cuenta · CRM CoreGrid" }];
@@ -30,21 +24,11 @@ export async function action({ request }: Route.ActionArgs) {
     return { error: "La contraseña debe tener al menos 6 caracteres" };
   }
 
-  const workspaceId = await getDefaultWorkspaceId();
-  if (!workspaceId) {
-    return { error: "No hay organización configurada. Contacta al administrador." };
-  }
-
   try {
-    // Por defecto entra como cliente (MEMBER). Admin se asigna manualmente.
-    const user = await register({
-      email,
-      password,
-      name: name || undefined,
-      workspaceId,
-      role: UserRole.MEMBER,
-    });
-    return createUserSession(user.id, "/app");
+    // Crea su propio tablero aislado (con deals demo) y lo loguea.
+    const user = await registerNewTenant({ email, password, name: name || undefined });
+    // Llega directo a "Mi cuenta" para copiar su llave y conectar su agente.
+    return createUserSession(user.id, "/app/cuenta");
   } catch (e) {
     return { error: e instanceof Error ? e.message : "No se pudo crear la cuenta" };
   }

@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import { randomBytes } from "crypto";
 import { redirect } from "react-router";
 import { db } from "~/lib/db.server";
 import {
@@ -7,6 +8,7 @@ import {
   destroySession,
 } from "~/sessions.server";
 import { UserRole } from "~/lib/enums";
+import { defaultWorkspaceData, seedDemoDeals } from "server/workspace-defaults";
 
 const BCRYPT_ROUNDS = 12;
 
@@ -41,6 +43,51 @@ export async function register(params: {
       role: params.role ?? UserRole.MEMBER,
     },
   });
+}
+
+/** Registro self-serve: crea un TABLERO propio (Workspace aislado, con deals
+ *  demo) y al user como OWNER con su llave personal. Cada grupo/demo ve solo su
+ *  tablero. Devuelve el user. */
+export async function registerNewTenant(params: {
+  email: string;
+  password: string;
+  name?: string;
+}) {
+  const email = params.email.trim().toLowerCase();
+  const existing = await db.user.findUnique({ where: { email } });
+  if (existing) throw new Error("Ya existe una cuenta con ese correo");
+
+  const baseName = params.name?.trim() || email.split("@")[0];
+  const slug = `${slugify(baseName)}-${randomBytes(3).toString("hex")}`;
+
+  const workspace = await db.workspace.create({
+    data: defaultWorkspaceData({ slug, name: baseName }),
+  });
+  await seedDemoDeals(db, workspace.id);
+
+  const passwordHash = await bcrypt.hash(params.password, BCRYPT_ROUNDS);
+  return db.user.create({
+    data: {
+      email,
+      name: params.name?.trim() || null,
+      passwordHash,
+      role: UserRole.OWNER,
+      workspaceId: workspace.id,
+      apiKey: generateApiKey(),
+    },
+  });
+}
+
+function slugify(s: string): string {
+  return (
+    s
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 32) || "tablero"
+  );
 }
 
 /** Valida credenciales. Devuelve el user o null. */
@@ -100,30 +147,63 @@ export async function requireWorkspace(request: Request) {
   return { user, workspaceId: user.workspaceId };
 }
 
-/** Resuelve workspace desde `Authorization: Bearer <apiKey>` (acceso de
- *  agentes / MCP). Devuelve el workspaceId o null. */
-export async function getWorkspaceFromApiKey(
+/** Genera una llave de API (`crm_sk_<hex>`). */
+export function generateApiKey(): string {
+  return `crm_sk_${randomBytes(24).toString("hex")}`;
+}
+
+export type ApiContext = {
+  workspaceId: string;
+  userId: string | null;
+  userEmail: string | null;
+};
+
+/** Resuelve el contexto desde `Authorization: Bearer <apiKey>`. La llave es
+ *  PER-USER (cada seat la suya) y como el user pertenece a un tablero, queda
+ *  scopeada a su Workspace. Fallback: llave a nivel workspace (org). */
+export async function getApiContext(
   request: Request
-): Promise<string | null> {
+): Promise<ApiContext | null> {
   const auth = request.headers.get("Authorization");
   if (!auth?.startsWith("Bearer ")) return null;
   const token = auth.slice(7).trim();
   if (!token) return null;
+
+  // 1) Llave de user → su tablero + atribución.
+  const user = await db.user.findUnique({
+    where: { apiKey: token },
+    select: { id: true, email: true, workspaceId: true },
+  });
+  if (user) {
+    return { workspaceId: user.workspaceId, userId: user.id, userEmail: user.email };
+  }
+
+  // 2) Llave de workspace (org).
   const ws = await db.workspace.findUnique({
     where: { apiKey: token },
     select: { id: true },
   });
-  return ws?.id ?? null;
+  if (ws) return { workspaceId: ws.id, userId: null, userEmail: null };
+
+  return null;
 }
 
-/** Tenancy para endpoints API: acepta bearer token (agentes/MCP) O cookie de
- *  sesión (dashboard). Lanza 401 si ninguno resuelve. Devuelve workspaceId. */
-export async function requireWorkspaceId(request: Request): Promise<string> {
-  const fromKey = await getWorkspaceFromApiKey(request);
+/** Contexto para endpoints API: bearer (agente/MCP, per-user o workspace) O
+ *  cookie de sesión (dashboard). Lanza 401 si ninguno resuelve. */
+export async function requireApiContext(request: Request): Promise<ApiContext> {
+  const fromKey = await getApiContext(request);
   if (fromKey) return fromKey;
   const user = await getUser(request);
-  if (user) return user.workspaceId;
+  if (user) {
+    return { workspaceId: user.workspaceId, userId: user.id, userEmail: user.email };
+  }
   throw new Response("No autorizado", { status: 401 });
+}
+
+/** Igual que requireApiContext pero devuelve solo el workspaceId. */
+export async function requireWorkspaceId(request: Request): Promise<string> {
+  const ctx = await requireApiContext(request);
+  return ctx.workspaceId;
 }
 
 /** Org (Workspace) por defecto de esta instancia: la primera/única.

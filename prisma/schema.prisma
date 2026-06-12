@@ -44,6 +44,7 @@ model User {
   name         String?
   passwordHash String // bcrypt
   role         String  @default("MEMBER") // OWNER | ADMIN | MEMBER
+  apiKey       String? @unique // llave personal del seat para agentes (MCP)
 
   workspaceId String
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)

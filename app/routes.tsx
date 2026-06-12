@@ -20,5 +20,6 @@ export default [
     route("app/contactos", "routes/app.contactos.tsx"),
     route("app/pipeline", "routes/app.pipeline.tsx"),
     route("app/escalaciones", "routes/app.escalaciones.tsx"),
+    route("app/cuenta", "routes/app.cuenta.tsx"),
   ]),
 ] satisfies RouteConfig;

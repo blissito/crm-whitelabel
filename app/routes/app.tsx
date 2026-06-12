@@ -9,6 +9,7 @@ import {
   HiOutlineRectangleStack,
   HiOutlineArrowTopRightOnSquare,
   HiOutlineArrowRightOnRectangle,
+  HiOutlineKey,
 } from "react-icons/hi2";
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -63,6 +64,17 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
         </nav>
 
         <div className="border-t border-white/10 p-3">
+          <NavLink
+            to="/app/cuenta"
+            className={({ isActive }) =>
+              `mb-1 flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                isActive ? "bg-white/10 text-white" : "text-white/70 hover:bg-white/10 hover:text-white"
+              }`
+            }
+          >
+            <HiOutlineKey className="h-5 w-5" />
+            Mi cuenta
+          </NavLink>
           <div className="mb-2 px-2">
             <p className="truncate text-sm font-medium text-white">
               {user.name ?? user.email}
