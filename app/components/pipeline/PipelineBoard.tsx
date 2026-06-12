@@ -4,6 +4,8 @@ import {
   Droppable,
   Draggable,
   type DropResult,
+  type DraggableProvided,
+  type DraggableStateSnapshot,
 } from "@hello-pangea/dnd";
 import { cn } from "~/lib/cn";
 import type { PipelineColumn, DealCard, PipelineData } from "server/crm.server";
@@ -21,18 +23,39 @@ const fmtCurrency = (value: number | null, currency = "MXN") =>
 
 const TAG_COLORS = [
   "bg-brand-100 text-brand-600",
-  "bg-pink-100 text-pink-700",
+  "bg-accent/15 text-accent-600",
   "bg-green-100 text-green-700",
   "bg-yellow-100 text-yellow-700",
-  "bg-blue-100 text-blue-700",
+  "bg-cyan/15 text-cyan",
 ];
 
-function Card({ deal, onClick }: { deal: DealCard; onClick: () => void }) {
+// La card ES el elemento draggable: innerRef + draggableProps + dragHandleProps
+// + onClick en el MISMO div (como Formmy). NUNCA un <button> (captura el
+// pointer y rompe el drag). Transiciona solo box-shadow/border, NO transform
+// (lo maneja dnd).
+function Card({
+  deal,
+  onClick,
+  provided,
+  snapshot,
+}: {
+  deal: DealCard;
+  onClick: () => void;
+  provided: DraggableProvided;
+  snapshot: DraggableStateSnapshot;
+}) {
   const title = deal.title || deal.conversationName || "Sin título";
   return (
-    <button
+    <div
+      ref={provided.innerRef}
+      {...provided.draggableProps}
+      {...provided.dragHandleProps}
       onClick={onClick}
-      className="w-full rounded-xl border border-outlines bg-white p-3 text-left shadow-sm transition hover:border-brand-300 hover:shadow"
+      className={cn(
+        "cursor-pointer rounded-xl border border-outlines bg-white p-3 shadow-sm",
+        "transition-[box-shadow,border-color] hover:border-brand-300 hover:shadow",
+        snapshot.isDragging && "shadow-lg ring-2 ring-brand-500"
+      )}
     >
       <p className="truncate text-sm font-medium text-dark">{title}</p>
       {deal.customerName && (
@@ -58,7 +81,7 @@ function Card({ deal, onClick }: { deal: DealCard; onClick: () => void }) {
           ))}
         </div>
       )}
-    </button>
+    </div>
   );
 }
 
@@ -95,7 +118,8 @@ function Column({
             ref={provided.innerRef}
             {...provided.droppableProps}
             className={cn(
-              "flex min-h-[120px] flex-1 flex-col gap-2 rounded-2xl border border-dashed p-2 transition",
+              "flex min-h-[120px] flex-1 flex-col gap-2 rounded-2xl border border-dashed p-2",
+              "transition-[background-color,border-color]",
               snapshot.isDraggingOver
                 ? "border-brand-300 bg-brand-100/40"
                 : "border-outlines bg-surface/50"
@@ -104,18 +128,21 @@ function Column({
             {stage.deals.map((deal, index) => (
               <Draggable key={deal.id} draggableId={deal.id} index={index}>
                 {(p, snap) => (
-                  <div
-                    ref={p.innerRef}
-                    {...p.draggableProps}
-                    {...p.dragHandleProps}
-                    className={cn(snap.isDragging && "opacity-90")}
-                  >
-                    <Card deal={deal} onClick={() => onCardClick(deal)} />
-                  </div>
+                  <Card
+                    deal={deal}
+                    onClick={() => onCardClick(deal)}
+                    provided={p}
+                    snapshot={snap}
+                  />
                 )}
               </Draggable>
             ))}
             {provided.placeholder}
+            {stage.deals.length === 0 && !snapshot.isDraggingOver && (
+              <div className="rounded-lg border border-dashed border-outlines py-6 text-center text-xs text-gray-400">
+                Arrastra aquí
+              </div>
+            )}
           </div>
         )}
       </Droppable>
@@ -150,16 +177,13 @@ export function PipelineBoard({
   };
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-w-0 flex-col">
       {/* Stats bar */}
       <div className="flex items-center justify-between border-b border-outlines bg-white px-6 py-4">
         <div className="flex gap-6">
           <Stat label="Oportunidades" value={String(data.stats.totalDeals)} />
           <Stat label="Abiertas" value={String(data.stats.openDeals)} />
-          <Stat
-            label="Valor total"
-            value={fmtCurrency(data.stats.totalValue) ?? "—"}
-          />
+          <Stat label="Valor total" value={fmtCurrency(data.stats.totalValue) ?? "—"} />
           <Stat
             label="Conversión"
             value={`${Math.round(data.stats.conversionRate * 100)}%`}
@@ -167,16 +191,16 @@ export function PipelineBoard({
         </div>
         <button
           onClick={onCreateDeal}
-          className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-600"
+          className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-600"
         >
           + Nueva oportunidad
         </button>
       </div>
 
-      {/* Board */}
-      <div className="flex-1 overflow-x-auto p-6">
+      {/* Board con scroll horizontal */}
+      <div className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden p-6">
         <DragDropContext onDragEnd={handleDragEnd}>
-          <div className="flex gap-4">
+          <div className="flex h-full min-w-min gap-4">
             {data.stages.map((stage) => (
               <Column key={stage.id} stage={stage} onCardClick={setSelected} />
             ))}

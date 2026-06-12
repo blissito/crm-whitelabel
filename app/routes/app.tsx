@@ -81,8 +81,9 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
         </div>
       </aside>
 
-      {/* Main */}
-      <main className="flex-1 overflow-auto">
+      {/* Main — min-w-0 permite que el board interno haga scroll horizontal
+          en vez de expandir el layout (trampa flexbox). */}
+      <main className="min-w-0 flex-1 overflow-hidden">
         <Outlet />
       </main>
     </div>

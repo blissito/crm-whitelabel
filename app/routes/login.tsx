@@ -34,17 +34,14 @@ export default function Login({ actionData }: Route.ComponentProps) {
 
   return (
     <main className="grid min-h-screen place-items-center bg-gradient-to-b from-dark to-hole p-6">
-      <div className="w-full max-w-sm">
-        {/* Logo blanco sobre navy — visible */}
-        <div className="mb-8 flex justify-center">
-          <img
-            src="/brand/coregrid-logo.png"
-            alt="CoreGrid"
-            className="h-16 w-auto object-contain"
-          />
-        </div>
-
-        <div className="rounded-2xl bg-white p-8 shadow-xl">
+      <div className="flex w-full max-w-sm flex-col items-center">
+        {/* Logo blanco sobre navy — grande como en la marca */}
+        <img
+          src="/brand/coregrid-logo.png"
+          alt="CoreGrid"
+          className="mb-8 w-72 max-w-full object-contain"
+        />
+        <div className="w-full rounded-2xl bg-white p-8 shadow-xl">
           <div className="mb-6 text-center">
             <h1 className="text-xl font-semibold text-dark">Bienvenido</h1>
             <p className="mt-1 text-sm text-gray-500">Ingresa a tu CRM</p>
@@ -87,7 +84,7 @@ export default function Login({ actionData }: Route.ComponentProps) {
             <button
               type="submit"
               disabled={busy}
-              className="w-full rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-600 disabled:opacity-60"
+              className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-600 disabled:opacity-60"
             >
               {busy ? "Ingresando…" : "Iniciar sesión"}
             </button>
