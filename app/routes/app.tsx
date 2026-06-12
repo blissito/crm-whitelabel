@@ -27,9 +27,9 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 const NAV = [
+  { to: "/app/pipeline", label: "Pipeline", Icon: HiOutlineRectangleStack },
   { to: "/app/conversaciones", label: "Conversaciones", Icon: HiOutlineChatBubbleLeftRight },
   { to: "/app/contactos", label: "Contactos", Icon: HiOutlineUsers },
-  { to: "/app/pipeline", label: "Pipeline", Icon: HiOutlineRectangleStack },
   { to: "/app/escalaciones", label: "Escalaciones", Icon: HiOutlineArrowTopRightOnSquare },
 ];
 
