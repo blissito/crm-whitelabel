@@ -19,16 +19,22 @@ export default {
         ],
       },
       colors: {
+        // Paleta real CoreGrid (de coregrid.com.mx): logo blanco sobre navy
+        // oscuro, hexágono cyan/azul, acento NARANJA en CTAs.
         brand: {
-          100: "#EAF3FB",
-          300: "#7FB4DE",
-          500: "#227BC3", // CoreGrid azul primario
-          600: "#0986C0",
-          800: "#074485", // CoreGrid azul oscuro
+          100: "#E6F4FB",
+          300: "#7FCBEC",
+          500: "#1CA7E0", // cyan-azul del hexágono
+          600: "#1689BC",
+          800: "#0B1B2E", // navy oscuro (fondo de marca)
         },
-        accent: "#E44993", // CoreGrid magenta
-        dark: "#03264A",
-        hole: "#001D39",
+        accent: {
+          DEFAULT: "#F37021", // naranja CTA CoreGrid
+          600: "#D85E14",
+        },
+        cyan: "#19C3D6",
+        dark: "#0B1B2E", // navy base
+        hole: "#001327",
         metal: "#4B5563",
         irongray: "#81838E",
         lightgray: "#B6B6BA",

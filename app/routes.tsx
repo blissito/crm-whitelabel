@@ -8,6 +8,7 @@ import {
 export default [
   index("routes/_index.tsx"),
   route("login", "routes/login.tsx"),
+  route("register", "routes/register.tsx"),
   route("logout", "routes/logout.tsx"),
 
   // API

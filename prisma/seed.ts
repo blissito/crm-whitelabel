@@ -42,7 +42,7 @@ const DEFAULT_TAGS = [
 const BRANDING = {
   name: "CoreGrid",
   logoUrl: "/brand/coregrid-logo.png",
-  primaryColor: "#227BC3",
+  primaryColor: "#1CA7E0", // cyan-azul CoreGrid
 };
 
 async function main() {

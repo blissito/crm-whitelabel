@@ -1,9 +1,15 @@
 import { Form, Link, redirect, useNavigation } from "react-router";
-import type { Route } from "./+types/login";
-import { getUserId, verifyLogin, createUserSession } from "server/auth.server";
+import type { Route } from "./+types/register";
+import {
+  getUserId,
+  register,
+  createUserSession,
+  getDefaultWorkspaceId,
+} from "server/auth.server";
+import { UserRole } from "~/lib/enums";
 
 export function meta() {
-  return [{ title: "Iniciar sesión · CRM CoreGrid" }];
+  return [{ title: "Crear cuenta · CRM CoreGrid" }];
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -13,21 +19,38 @@ export async function loader({ request }: Route.LoaderArgs) {
 
 export async function action({ request }: Route.ActionArgs) {
   const form = await request.formData();
-  const email = String(form.get("email") ?? "");
+  const name = String(form.get("name") ?? "").trim();
+  const email = String(form.get("email") ?? "").trim();
   const password = String(form.get("password") ?? "");
-  const redirectTo = String(form.get("redirectTo") ?? "/app");
 
   if (!email || !password) {
     return { error: "Correo y contraseña son requeridos" };
   }
-  const user = await verifyLogin(email, password);
-  if (!user) {
-    return { error: "Credenciales inválidas" };
+  if (password.length < 6) {
+    return { error: "La contraseña debe tener al menos 6 caracteres" };
   }
-  return createUserSession(user.id, redirectTo || "/app");
+
+  const workspaceId = await getDefaultWorkspaceId();
+  if (!workspaceId) {
+    return { error: "No hay organización configurada. Contacta al administrador." };
+  }
+
+  try {
+    // Por defecto entra como cliente (MEMBER). Admin se asigna manualmente.
+    const user = await register({
+      email,
+      password,
+      name: name || undefined,
+      workspaceId,
+      role: UserRole.MEMBER,
+    });
+    return createUserSession(user.id, "/app");
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "No se pudo crear la cuenta" };
+  }
 }
 
-export default function Login({ actionData }: Route.ComponentProps) {
+export default function Register({ actionData }: Route.ComponentProps) {
   const errors = actionData as { error?: string } | undefined;
   const nav = useNavigation();
   const busy = nav.state !== "idle";
@@ -35,7 +58,6 @@ export default function Login({ actionData }: Route.ComponentProps) {
   return (
     <main className="grid min-h-screen place-items-center bg-gradient-to-b from-dark to-hole p-6">
       <div className="w-full max-w-sm">
-        {/* Logo blanco sobre navy — visible */}
         <div className="mb-8 flex justify-center">
           <img
             src="/brand/coregrid-logo.png"
@@ -46,11 +68,17 @@ export default function Login({ actionData }: Route.ComponentProps) {
 
         <div className="rounded-2xl bg-white p-8 shadow-xl">
           <div className="mb-6 text-center">
-            <h1 className="text-xl font-semibold text-dark">Bienvenido</h1>
-            <p className="mt-1 text-sm text-gray-500">Ingresa a tu CRM</p>
+            <h1 className="text-xl font-semibold text-dark">Crear cuenta</h1>
+            <p className="mt-1 text-sm text-gray-500">Empieza a usar tu CRM</p>
           </div>
 
           <Form method="post" className="space-y-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-600">
+                Nombre
+              </label>
+              <input type="text" name="name" autoComplete="name" className="input" placeholder="Tu nombre" />
+            </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-600">
                 Correo
@@ -72,9 +100,9 @@ export default function Login({ actionData }: Route.ComponentProps) {
                 type="password"
                 name="password"
                 required
-                autoComplete="current-password"
+                autoComplete="new-password"
                 className="input"
-                placeholder="••••••••"
+                placeholder="Mínimo 6 caracteres"
               />
             </div>
 
@@ -89,14 +117,14 @@ export default function Login({ actionData }: Route.ComponentProps) {
               disabled={busy}
               className="w-full rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-600 disabled:opacity-60"
             >
-              {busy ? "Ingresando…" : "Iniciar sesión"}
+              {busy ? "Creando…" : "Crear cuenta"}
             </button>
           </Form>
 
           <p className="mt-5 text-center text-sm text-gray-500">
-            ¿No tienes cuenta?{" "}
-            <Link to="/register" className="font-semibold text-brand-500 hover:text-brand-600">
-              Crear cuenta
+            ¿Ya tienes cuenta?{" "}
+            <Link to="/login" className="font-semibold text-brand-500 hover:text-brand-600">
+              Iniciar sesión
             </Link>
           </p>
         </div>

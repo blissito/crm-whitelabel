@@ -37,10 +37,10 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
 
   return (
     <div className="flex h-screen bg-surface">
-      {/* Sidebar */}
-      <aside className="flex w-60 flex-col border-r border-outlines bg-white">
-        <div className="flex h-16 items-center gap-2 border-b border-outlines px-5">
-          <img src={logo} alt={workspaceName} className="h-8 w-auto object-contain" />
+      {/* Sidebar navy — marca CoreGrid (logo blanco visible) */}
+      <aside className="flex w-60 flex-col bg-dark text-white">
+        <div className="flex h-16 items-center gap-2 border-b border-white/10 px-5">
+          <img src={logo} alt={workspaceName} className="h-9 w-auto object-contain" />
         </div>
 
         <nav className="flex-1 space-y-1 p-3">
@@ -51,8 +51,8 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
               className={({ isActive }) =>
                 `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
                   isActive
-                    ? "bg-brand-100 text-brand-600"
-                    : "text-gray-600 hover:bg-surface"
+                    ? "bg-brand-500 text-white"
+                    : "text-white/70 hover:bg-white/10 hover:text-white"
                 }`
               }
             >
@@ -62,17 +62,17 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
           ))}
         </nav>
 
-        <div className="border-t border-outlines p-3">
+        <div className="border-t border-white/10 p-3">
           <div className="mb-2 px-2">
-            <p className="truncate text-sm font-medium text-dark">
+            <p className="truncate text-sm font-medium text-white">
               {user.name ?? user.email}
             </p>
-            <p className="truncate text-xs text-gray-400">{user.email}</p>
+            <p className="truncate text-xs text-white/50">{user.email}</p>
           </div>
           <Form method="post" action="/logout">
             <button
               type="submit"
-              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition hover:bg-surface"
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-white/70 transition hover:bg-white/10 hover:text-white"
             >
               <HiOutlineArrowRightOnRectangle className="h-5 w-5" />
               Cerrar sesión

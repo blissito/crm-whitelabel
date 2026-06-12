@@ -100,6 +100,30 @@ export async function requireWorkspace(request: Request) {
   return { user, workspaceId: user.workspaceId };
 }
 
+/** Org (Workspace) por defecto de esta instancia: la primera/única.
+ *  En el modelo white-label, cada deploy = una org de distribuidor. */
+export async function getDefaultWorkspaceId(): Promise<string | null> {
+  const ws = await db.workspace.findFirst({
+    orderBy: { createdAt: "asc" },
+    select: { id: true },
+  });
+  return ws?.id ?? null;
+}
+
+/** ¿El user tiene rol admin (OWNER/ADMIN)? Para gating de rutas admin. */
+export function isAdmin(user: { role: string }): boolean {
+  return user.role === UserRole.OWNER || user.role === UserRole.ADMIN;
+}
+
+/** Exige sesión + rol admin; si no, 403. */
+export async function requireAdmin(request: Request): Promise<SessionUser> {
+  const user = await getUserOrRedirect(request);
+  if (!isAdmin(user)) {
+    throw new Response("No autorizado", { status: 403 });
+  }
+  return user;
+}
+
 /** Destruye la sesión y redirige a /login. */
 export async function logout(request: Request) {
   const session = await getSession(request.headers.get("Cookie"));
