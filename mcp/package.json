@@ -1,6 +1,6 @@
 {
   "name": "coregrid-crm-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MCP server para el CRM CoreGrid — tools de pipeline/deals para agentes",
   "type": "module",
   "bin": {

@@ -61,7 +61,7 @@ const fail = (e) => ({
 
 const server = new McpServer({
   name: "coregrid-crm",
-  version: "0.1.0",
+  version: "0.2.0",
 });
 
 server.tool(
@@ -167,6 +167,24 @@ server.tool(
     try {
       await postCrm({ intent: "delete_deal", dealId });
       return ok({ deleted: true, dealId });
+    } catch (e) {
+      return fail(e);
+    }
+  }
+);
+
+server.tool(
+  "create_share_link",
+  "Genera un link público de SOLO LECTURA (con token) para abrir el pipeline completo o una oportunidad específica. Úsalo para mandarle a alguien una vista del tablero o de un lead sin que tenga que iniciar sesión. Devuelve la URL.",
+  {
+    kind: z.enum(["pipeline", "deal"]).describe("'pipeline' = tablero completo; 'deal' = una oportunidad"),
+    dealId: z.string().optional().describe("ID del deal (requerido si kind='deal')"),
+    expiresHours: z.number().optional().describe("Horas hasta que expire el link (omitir = sin expiración)"),
+  },
+  async ({ kind, dealId, expiresHours }) => {
+    try {
+      const r = await postCrm({ intent: "create_share_link", kind, dealId, expiresHours });
+      return ok({ url: r.url });
     } catch (e) {
       return fail(e);
     }

@@ -11,8 +11,12 @@ export default [
   route("register", "routes/register.tsx"),
   route("logout", "routes/logout.tsx"),
 
+  // Público (solo-lectura por token)
+  route("s/:token", "routes/s.$token.tsx"),
+
   // API
   route("api/v1/crm", "routes/api.v1.crm.ts"),
+  route("api/v1/share/:token", "routes/api.v1.share.$token.ts"),
 
   layout("routes/app.tsx", [
     route("app", "routes/app._index.tsx"),

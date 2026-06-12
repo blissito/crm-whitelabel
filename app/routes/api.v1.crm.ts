@@ -8,6 +8,7 @@ import {
   deleteDeal,
   type DealInput,
 } from "server/crm.server";
+import { createShareLink } from "server/share.server";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const { workspaceId } = await requireApiContext(request);
@@ -40,6 +41,15 @@ export async function action({ request }: Route.ActionArgs) {
       case "delete_deal": {
         await deleteDeal(workspaceId, body.dealId);
         return Response.json({ ok: true });
+      }
+      case "create_share_link": {
+        const origin = new URL(request.url).origin;
+        const token = await createShareLink(workspaceId, {
+          kind: body.kind === "deal" ? "deal" : "pipeline",
+          dealId: body.dealId,
+          expiresHours: body.expiresHours,
+        });
+        return Response.json({ ok: true, url: `${origin}/s/${token}` });
       }
       default:
         return Response.json({ ok: false, error: "intent inválido" }, { status: 400 });
