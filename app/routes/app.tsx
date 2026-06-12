@@ -39,8 +39,8 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
     <div className="flex h-screen bg-surface">
       {/* Sidebar navy — marca CoreGrid (logo blanco visible) */}
       <aside className="flex w-60 flex-col bg-dark text-white">
-        <div className="flex h-16 items-center gap-2 border-b border-white/10 px-5">
-          <img src={logo} alt={workspaceName} className="h-9 w-auto object-contain" />
+        <div className="flex items-center gap-2 border-b border-white/10 px-5 py-6">
+          <img src={logo} alt={workspaceName} className="w-44 max-w-full object-contain" />
         </div>
 
         <nav className="flex-1 space-y-1 p-3">
