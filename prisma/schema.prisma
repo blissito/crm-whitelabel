@@ -1,0 +1,318 @@
+// CRM CoreGrid — schema SQLite (port white-label del CRM de Formmy).
+// SQLite no soporta enums, scalar lists ni tipos embebidos: los enums son
+// String (constantes en app/lib/enums.ts) y tags/estado/metadata van como
+// columnas JSON serializadas (helpers en app/lib/json.ts).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── TENANT ──────────────────────────────────────────────────────────────
+// Un distribuidor (CoreGrid) = 1 Workspace con N usuarios operadores.
+model Workspace {
+  id            String   @id @default(cuid())
+  slug          String   @unique
+  name          String
+  // Presets CRM + branding (JSON serializado)
+  estadoPresets String? // [{label,color}]
+  tagPresets    String? // [{label,color}]
+  pipeline      String? // [{id,name,color,order,isClosed?,closedType?}]
+  branding      String? // {logoUrl, primaryColor, name}
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  users            User[]
+  conversations    Conversation[]
+  contacts         Contact[]
+  leads            Lead[]
+  deals            Deal[]
+  ordenes          Orden[]
+  escalations      EscalationRequest[]
+  whatsappChannels WhatsAppChannel[]
+}
+
+// ─── AUTH (email/password) ───────────────────────────────────────────────
+model User {
+  id           String  @id @default(cuid())
+  email        String  @unique
+  name         String?
+  passwordHash String // bcrypt
+  role         String  @default("MEMBER") // OWNER | ADMIN | MEMBER
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workspaceId])
+}
+
+// ─── CONVERSATIONS ───────────────────────────────────────────────────────
+model Conversation {
+  id           String  @id @default(cuid())
+  sessionId    String  @unique // "whatsapp_<phone>_<workspaceId>"
+  visitorId    String?
+  name         String? // nombre legible (push name de WhatsApp)
+  customName   String? // override manual del operador
+  status       String  @default("ACTIVE") // ACTIVE | COMPLETED | TIMEOUT | DELETED
+  messageCount Int     @default(0)
+  isFavorite   Boolean @default(false)
+  manualMode   Boolean @default(false)
+  assignedTo   String? // email del agente asignado
+
+  // Coexistencia WABA
+  lastEchoAt       DateTime?
+  pauseUntil       DateTime?
+  pauseDurationMin Int       @default(30)
+  pauseReason      String?
+
+  // CRM embebido (JSON serializado)
+  tags   String  @default("[]") // [{label,color,comment?,createdAt,createdBy?}]
+  estado String? // {label,color,setAt,setBy?}
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  channelId String?
+  channel   WhatsAppChannel? @relation(fields: [channelId], references: [id])
+
+  messages    Message[]
+  contacts    Contact[]
+  leads       Lead[]
+  deals       Deal[]
+  ordenes     Orden[]
+  escalations EscalationRequest[]
+
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+  createdAt DateTime  @default(now())
+  // Manual bump: solo se actualiza en paths de mensaje real (no metadata).
+  updatedAt DateTime  @default(now())
+
+  @@index([workspaceId, status, updatedAt])
+  @@index([assignedTo])
+}
+
+model Message {
+  id             String @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  content String
+  role    String // USER | ASSISTANT | SYSTEM
+  origin  String? // operator_dashboard | operator_phone | history
+  deleted Boolean @default(false)
+
+  externalMessageId String?
+
+  // Media (WhatsApp)
+  mediaFileId   String?
+  mediaType     String? // image | audio | video | document | sticker
+  mediaMime     String?
+  mediaFilename String?
+
+  // Reacciones
+  isReaction      Boolean? @default(false)
+  reactionEmoji   String?
+  reactionToMsgId String?
+
+  createdAt DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([conversationId, deleted])
+}
+
+// ─── CONTACTS / LEADS ────────────────────────────────────────────────────
+model Contact {
+  id                String  @id @default(cuid())
+  name              String?
+  phone             String?
+  email             String?
+  profilePictureUrl String?
+
+  customFields String? // JSON {company, role, ...}
+  direcciones  String? // JSON [{id,label,direccion,cp,ciudad,mapsUrl}]
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  conversationId String?
+  conversation   Conversation? @relation(fields: [conversationId], references: [id])
+
+  deals Deal[]
+
+  capturedAt DateTime @default(now())
+
+  @@unique([workspaceId, phone]) // un teléfono por workspace
+  @@index([workspaceId])
+  @@index([email])
+}
+
+model Lead {
+  id              String  @id @default(cuid())
+  name            String?
+  email           String?
+  phone           String?
+  productInterest String?
+  position        String?
+  website         String?
+  notes           String?
+  status          String  @default("NEW") // NEW | CONTACTED | SCHEDULED | NEGOTIATING | CLOSED_WON | CLOSED_LOST
+  source          String? @default("whatsapp")
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  conversationId String?
+  conversation   Conversation? @relation(fields: [conversationId], references: [id])
+
+  capturedAt  DateTime @default(now())
+  lastUpdated DateTime @updatedAt
+
+  @@index([workspaceId])
+  @@index([status])
+}
+
+// ─── DEALS / PIPELINE ────────────────────────────────────────────────────
+model Deal {
+  id String @id @default(cuid())
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+
+  contactId String?
+  contact   Contact? @relation(fields: [contactId], references: [id])
+
+  stageId  String // id del stage en pipeline JSON del Workspace
+  position Int?
+
+  title    String?
+  value    Float?
+  currency String  @default("MXN")
+  source   String?
+
+  customerName  String?
+  customerEmail String?
+  customerPhone String?
+
+  tags String @default("[]") // JSON String[]
+
+  assignedTo String?
+
+  dealNotes DealNote[]
+
+  closedAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([workspaceId, stageId])
+  @@index([conversationId])
+}
+
+model DealNote {
+  id     String @id @default(cuid())
+  dealId String
+  deal   Deal   @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  content     String
+  authorEmail String
+  createdAt   DateTime @default(now())
+
+  @@index([dealId, createdAt])
+}
+
+// ─── ÓRDENES / COTIZACIONES ──────────────────────────────────────────────
+model Orden {
+  id String @id @default(cuid())
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+
+  folio   String?
+  cliente String?
+  tel     String?
+  total   Float?
+  estatus String?
+  status  String  @default("ABIERTA") // ABIERTA | CERRADA
+  notas   String?
+
+  cotizacionUrl    String?
+  direccionEntrega String? // JSON snapshot
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([conversationId, createdAt])
+}
+
+// ─── ESCALATIONS ─────────────────────────────────────────────────────────
+model EscalationRequest {
+  id String @id @default(cuid())
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  reason      String
+  summary     String?
+  status      String  @default("PENDING") // PENDING | ASSIGNED | RESOLVED
+  assignedTo  String?
+  priority    String  @default("NORMAL") // LOW | NORMAL | HIGH | URGENT
+  channel     String  @default("whatsapp")
+  contactInfo String? // JSON
+  metadata    String? // JSON
+
+  createdAt  DateTime  @default(now())
+  resolvedAt DateTime?
+
+  @@index([workspaceId, status])
+}
+
+// ─── WHATSAPP CHANNEL (credenciales WABA) ────────────────────────────────
+model WhatsAppChannel {
+  id String @id @default(cuid())
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  phoneNumberId      String  @unique // ← clave de resolución del webhook
+  businessAccountId  String?
+  displayPhoneNumber String?
+  accessToken        String // token WABA
+  webhookVerifyToken String
+  isActive           Boolean @default(true)
+
+  conversations Conversation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workspaceId])
+}
+
+// ─── WEBHOOK DEDUP ───────────────────────────────────────────────────────
+model ProcessedWebhook {
+  id            String   @id @default(cuid())
+  externalId    String   @unique // WhatsApp message id
+  type          String // message | echo | status
+  phoneNumberId String
+  processedAt   DateTime @default(now())
+  expiresAt     DateTime // limpieza por cron (SQLite no tiene TTL)
+
+  @@index([expiresAt])
+  @@index([phoneNumberId, type])
+}

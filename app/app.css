@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --brand: #227bc3;
+  --accent: #e44993;
+}
+
+html,
+body {
+  @apply bg-white text-gray-900;
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
