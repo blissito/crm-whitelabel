@@ -7,6 +7,7 @@ import {
   type DraggableProvided,
   type DraggableStateSnapshot,
 } from "@hello-pangea/dnd";
+import { AnimatePresence } from "framer-motion";
 import { cn } from "~/lib/cn";
 import type { PipelineColumn, DealCard, PipelineData } from "server/crm.server";
 import { DealDrawer } from "./DealDrawer";
@@ -208,21 +209,24 @@ export function PipelineBoard({
         </DragDropContext>
       </div>
 
-      {selected && (
-        <DealDrawer
-          deal={selected}
-          stages={data.stages}
-          onClose={() => setSelected(null)}
-          onSave={(input) => {
-            onSaveDeal(selected.id, input);
-            setSelected(null);
-          }}
-          onDelete={() => {
-            onDeleteDeal(selected.id);
-            setSelected(null);
-          }}
-        />
-      )}
+      <AnimatePresence>
+        {selected && (
+          <DealDrawer
+            key={selected.id}
+            deal={selected}
+            stages={data.stages}
+            onClose={() => setSelected(null)}
+            onSave={(input) => {
+              onSaveDeal(selected.id, input);
+              setSelected(null);
+            }}
+            onDelete={() => {
+              onDeleteDeal(selected.id);
+              setSelected(null);
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

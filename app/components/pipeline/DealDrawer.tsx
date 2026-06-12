@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { HiXMark, HiTrash } from "react-icons/hi2";
 import type { DealCard, PipelineColumn } from "server/crm.server";
 
@@ -39,8 +40,21 @@ export function DealDrawer({
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
-      <aside className="relative flex h-full w-full max-w-md flex-col bg-white shadow-2xl">
+      <motion.div
+        className="absolute inset-0 bg-black/30"
+        onClick={onClose}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
+      />
+      <motion.aside
+        className="relative flex h-full w-full max-w-md flex-col bg-white shadow-2xl"
+        initial={{ x: "100%" }}
+        animate={{ x: 0 }}
+        exit={{ x: "100%" }}
+        transition={{ type: "spring", damping: 30, stiffness: 300 }}
+      >
         <header className="flex items-center justify-between border-b border-outlines px-6 py-4">
           <h2 className="text-lg font-semibold text-dark">Oportunidad</h2>
           <button onClick={onClose} className="rounded-lg p-1 text-gray-400 hover:bg-surface">
@@ -137,13 +151,13 @@ export function DealDrawer({
             </button>
             <button
               onClick={save}
-              className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-600"
+              className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-600"
             >
               Guardar
             </button>
           </div>
         </footer>
-      </aside>
+      </motion.aside>
     </div>
   );
 }
