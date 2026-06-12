@@ -18,6 +18,7 @@ model Workspace {
   id            String   @id @default(cuid())
   slug          String   @unique
   name          String
+  apiKey        String?  @unique // bearer token para acceso de agentes (MCP)
   // Presets CRM + branding (JSON serializado)
   estadoPresets String? // [{label,color}]
   tagPresets    String? // [{label,color}]

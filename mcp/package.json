@@ -1,0 +1,28 @@
+{
+  "name": "coregrid-crm-mcp",
+  "version": "0.1.0",
+  "description": "MCP server para el CRM CoreGrid — tools de pipeline/deals para agentes",
+  "type": "module",
+  "bin": {
+    "coregrid-crm-mcp": "index.js"
+  },
+  "files": [
+    "index.js",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "crm",
+    "coregrid",
+    "pipeline"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "zod": "^3.23.8"
+  }
+}

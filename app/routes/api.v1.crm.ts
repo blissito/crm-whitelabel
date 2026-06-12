@@ -1,5 +1,5 @@
 import type { Route } from "./+types/api.v1.crm";
-import { requireWorkspace } from "server/auth.server";
+import { requireWorkspaceId } from "server/auth.server";
 import {
   getPipeline,
   createDeal,
@@ -10,13 +10,13 @@ import {
 } from "server/crm.server";
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const { workspaceId } = await requireWorkspace(request);
+  const workspaceId = await requireWorkspaceId(request);
   const data = await getPipeline(workspaceId);
   return Response.json(data);
 }
 
 export async function action({ request }: Route.ActionArgs) {
-  const { workspaceId } = await requireWorkspace(request);
+  const workspaceId = await requireWorkspaceId(request);
   const body = await request.json();
   const intent = body.intent as string;
 

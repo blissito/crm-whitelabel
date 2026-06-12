@@ -100,6 +100,32 @@ export async function requireWorkspace(request: Request) {
   return { user, workspaceId: user.workspaceId };
 }
 
+/** Resuelve workspace desde `Authorization: Bearer <apiKey>` (acceso de
+ *  agentes / MCP). Devuelve el workspaceId o null. */
+export async function getWorkspaceFromApiKey(
+  request: Request
+): Promise<string | null> {
+  const auth = request.headers.get("Authorization");
+  if (!auth?.startsWith("Bearer ")) return null;
+  const token = auth.slice(7).trim();
+  if (!token) return null;
+  const ws = await db.workspace.findUnique({
+    where: { apiKey: token },
+    select: { id: true },
+  });
+  return ws?.id ?? null;
+}
+
+/** Tenancy para endpoints API: acepta bearer token (agentes/MCP) O cookie de
+ *  sesión (dashboard). Lanza 401 si ninguno resuelve. Devuelve workspaceId. */
+export async function requireWorkspaceId(request: Request): Promise<string> {
+  const fromKey = await getWorkspaceFromApiKey(request);
+  if (fromKey) return fromKey;
+  const user = await getUser(request);
+  if (user) return user.workspaceId;
+  throw new Response("No autorizado", { status: 401 });
+}
+
 /** Org (Workspace) por defecto de esta instancia: la primera/única.
  *  En el modelo white-label, cada deploy = una org de distribuidor. */
 export async function getDefaultWorkspaceId(): Promise<string | null> {

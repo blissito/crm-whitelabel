@@ -46,6 +46,10 @@ const BRANDING = {
 };
 
 async function main() {
+  // API key para acceso de agentes (MCP). Estable vía env CRM_API_KEY;
+  // solo se setea si está definida (no se borra si ya existe).
+  const apiKey = process.env.CRM_API_KEY || undefined;
+
   const workspace = await db.workspace.upsert({
     where: { slug: "coregrid" },
     update: {
@@ -53,6 +57,7 @@ async function main() {
       estadoPresets: JSON.stringify(DEFAULT_ESTADOS),
       tagPresets: JSON.stringify(DEFAULT_TAGS),
       branding: JSON.stringify(BRANDING),
+      ...(apiKey ? { apiKey } : {}),
     },
     create: {
       slug: "coregrid",
@@ -61,8 +66,10 @@ async function main() {
       estadoPresets: JSON.stringify(DEFAULT_ESTADOS),
       tagPresets: JSON.stringify(DEFAULT_TAGS),
       branding: JSON.stringify(BRANDING),
+      ...(apiKey ? { apiKey } : {}),
     },
   });
+  if (apiKey) console.log(`   API key configurada para MCP`);
 
   const email = "admin@coregrid.com.mx";
   const passwordHash = await bcrypt.hash("coregrid123", 12);
