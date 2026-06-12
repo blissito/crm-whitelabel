@@ -40,10 +40,22 @@ seed corren al **arranque de la máquina** (Dockerfile `CMD`), no en
 
 **Backups:** snapshots automáticos del volumen (retención 5 días).
 
+## Modelo de tableros
+
+**Hoy: 1 cuenta = 1 tablero** (`User` n:1 `Workspace`). El signup crea un tablero
+aislado propio. Cada usuario tiene su llave personal (`User.apiKey`) que opera
+solo su tablero.
+
+> **PRÓXIMAMENTE: multitablero** — una cuenta administrará N tableros (membresía
+> muchos-a-muchos `User`↔`Workspace` + selector de tablero + crear tablero).
+
 ## Estado
 
-- ✅ Auth email/password + multi-tenancy
-- ✅ Pipeline / kanban de ventas (drag & drop, drawer editable, stats)
-- ⏳ Conversaciones (bandeja WhatsApp) — Fase 2 pendiente
-- ⏳ Contactos / Leads — Fase 2 pendiente
+- ✅ Auth email/password + multi-tenancy (1 tablero por cuenta)
+- ✅ Pipeline / kanban de ventas (drag & drop, drawer animado, stats)
+- ✅ Real-time del tablero (TanStack Query, poll 4s)
+- ✅ Llave por user + página "Mi cuenta" + MCP (`coregrid-crm-mcp`)
+- ⏳ Multitablero por cuenta — próximamente
+- ⏳ Conversaciones (bandeja WhatsApp) — pendiente
+- ⏳ Contactos / Leads — pendiente
 - ⏳ Ingesta WhatsApp WABA — Fase 3 (cuando se conecte el número)
