@@ -43,7 +43,10 @@ export async function action({ request }: Route.ActionArgs) {
         return Response.json({ ok: true });
       }
       case "create_share_link": {
-        const origin = new URL(request.url).origin;
+        // Honra X-Forwarded-Proto (Fly termina TLS → request interno es http).
+        const url = new URL(request.url);
+        const proto = request.headers.get("x-forwarded-proto") || url.protocol.replace(":", "");
+        const origin = `${proto}://${url.host}`;
         const token = await createShareLink(workspaceId, {
           kind: body.kind === "deal" ? "deal" : "pipeline",
           dealId: body.dealId,
