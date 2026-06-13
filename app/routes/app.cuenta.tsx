@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useFetcher, Form } from "react-router";
+import { useFetcher } from "react-router";
 import {
   HiKey,
   HiClipboard,
@@ -16,6 +16,7 @@ import { logAction } from "server/audit.server";
 import { listShareLinks, revokeShareLink } from "server/share.server";
 import { db } from "~/lib/db.server";
 import { cn } from "~/lib/cn";
+import { ConfirmModal } from "~/components/ConfirmModal";
 
 export function meta() {
   return [{ title: "Mi cuenta · CRM CoreGrid" }];
@@ -102,6 +103,20 @@ export default function Cuenta({ loaderData }: Route.ComponentProps) {
   // navegación global.
   const fetcher = useFetcher();
   const busy = fetcher.state !== "idle";
+
+  // Revocación de links públicos con confirmación.
+  const revokeFetcher = useFetcher();
+  const [pendingRevoke, setPendingRevoke] = useState<
+    { id: string; label: string } | null
+  >(null);
+  const confirmRevoke = () => {
+    if (!pendingRevoke) return;
+    revokeFetcher.submit(
+      { intent: "revoke_share", id: pendingRevoke.id },
+      { method: "post" }
+    );
+    setPendingRevoke(null);
+  };
 
   const effectiveKey = apiKey ?? workspaceApiKey;
   const keyForCfg = effectiveKey ?? "TU_LLAVE";
@@ -265,17 +280,14 @@ export default function Cuenta({ loaderData }: Route.ComponentProps) {
                         vence {new Date(l.expiresAt).toLocaleDateString("es-MX")}
                       </span>
                     )}
-                    <Form method="post">
-                      <input type="hidden" name="intent" value="revoke_share" />
-                      <input type="hidden" name="id" value={l.id} />
-                      <button
-                        type="submit"
-                        title="Apagar link"
-                        className="rounded-lg p-2 text-gray-400 transition hover:bg-danger/10 hover:text-danger"
-                      >
-                        <HiTrash className="h-4 w-4" />
-                      </button>
-                    </Form>
+                    <button
+                      type="button"
+                      onClick={() => setPendingRevoke({ id: l.id, label })}
+                      title="Apagar link"
+                      className="rounded-lg p-2 text-gray-400 transition hover:bg-danger/10 hover:text-danger"
+                    >
+                      <HiTrash className="h-4 w-4" />
+                    </button>
                   </li>
                 );
               })}
@@ -283,6 +295,20 @@ export default function Cuenta({ loaderData }: Route.ComponentProps) {
           )}
         </section>
       )}
+
+      <ConfirmModal
+        open={pendingRevoke !== null}
+        title="¿Apagar este link?"
+        message={
+          <>
+            <span className="font-medium text-dark">{pendingRevoke?.label}</span>{" "}
+            dejará de funcionar de inmediato. Quien tenga la URL ya no podrá verlo.
+          </>
+        }
+        confirmLabel="Apagar link"
+        onConfirm={confirmRevoke}
+        onCancel={() => setPendingRevoke(null)}
+      />
     </div>
   );
 }

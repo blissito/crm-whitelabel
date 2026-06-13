@@ -1,6 +1,6 @@
 import { flushSync } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { PipelineData, DealCard } from "server/crm.server";
+import type { PipelineData, DealCard, DealNoteItem } from "server/crm.server";
 import type { PipelineStage } from "~/lib/json";
 
 // Real-time del tablero copiando el patrón de Formmy (TanStack Query +
@@ -32,6 +32,35 @@ async function postCrm(body: Record<string, unknown>) {
     body: JSON.stringify(body),
   });
   return res.json();
+}
+
+// ─── Notas de un deal (fuera del cache del tablero: flujo propio) ─────────
+export async function fetchDealNotes(dealId: string): Promise<DealNoteItem[]> {
+  const res = await postCrm({ intent: "list_deal_notes", dealId });
+  return res.ok ? res.notes : [];
+}
+
+export async function addDealNote(
+  dealId: string,
+  content: string
+): Promise<DealNoteItem | null> {
+  const res = await postCrm({ intent: "add_deal_note", dealId, content });
+  return res.ok ? res.note : null;
+}
+
+export async function deleteDealNote(dealId: string, noteId: string): Promise<boolean> {
+  const res = await postCrm({ intent: "delete_deal_note", dealId, noteId });
+  return !!res.ok;
+}
+
+// ─── Compartir (genera link público read-only) ───────────────────────────
+export async function createShareLink(opts: {
+  kind: "pipeline" | "deal";
+  dealId?: string;
+  expiresHours?: number;
+}): Promise<string | null> {
+  const res = await postCrm({ intent: "create_share_link", ...opts });
+  return res.ok ? (res.url as string) : null;
 }
 
 // Mueve una card en el cache local (optimista) antes de que el poll reconcilie.

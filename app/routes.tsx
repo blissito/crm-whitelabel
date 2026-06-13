@@ -20,6 +20,10 @@ export default [
   // API
   route("api/v1/crm", "routes/api.v1.crm.ts"),
   route("api/v1/share/:token", "routes/api.v1.share.$token.ts"),
+  route(
+    "api/v1/share/:token/notes/:dealId",
+    "routes/api.v1.share.$token.notes.$dealId.ts"
+  ),
 
   layout("routes/app.tsx", [
     route("app", "routes/app._index.tsx"),

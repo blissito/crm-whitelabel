@@ -1,7 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { HiXMark, HiTrash } from "react-icons/hi2";
-import type { DealCard, PipelineColumn } from "server/crm.server";
+import type { DealCard, PipelineColumn, DealNoteItem } from "server/crm.server";
+import {
+  fetchDealNotes,
+  addDealNote,
+  deleteDealNote,
+} from "~/lib/queries/pipeline";
+import { ShareButton } from "~/components/ShareButton";
 
 export function DealDrawer({
   deal,
@@ -57,9 +63,12 @@ export function DealDrawer({
       >
         <header className="flex items-center justify-between border-b border-outlines px-6 py-4">
           <h2 className="text-lg font-semibold text-dark">Oportunidad</h2>
-          <button onClick={onClose} className="rounded-lg p-1 text-gray-400 hover:bg-surface">
-            <HiXMark className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <ShareButton kind="deal" dealId={deal.id} className="px-2.5 py-1.5" />
+            <button onClick={onClose} className="rounded-lg p-1 text-gray-400 hover:bg-surface">
+              <HiXMark className="h-5 w-5" />
+            </button>
+          </div>
         </header>
 
         <div className="flex-1 space-y-4 overflow-auto p-6">
@@ -132,6 +141,8 @@ export function DealDrawer({
               placeholder="VIP, Mayorista"
             />
           </Field>
+
+          <NotesSection dealId={deal.id} />
         </div>
 
         <footer className="flex items-center justify-between border-t border-outlines px-6 py-4">
@@ -168,5 +179,110 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span className="mb-1 block text-sm font-medium text-gray-600">{label}</span>
       {children}
     </label>
+  );
+}
+
+const fmtNoteDate = (iso: string) =>
+  new Intl.DateTimeFormat("es-MX", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(iso));
+
+function NotesSection({ dealId }: { dealId: string }) {
+  const [notes, setNotes] = useState<DealNoteItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    fetchDealNotes(dealId).then((data) => {
+      if (active) {
+        setNotes(data);
+        setLoading(false);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [dealId]);
+
+  const add = async () => {
+    const text = draft.trim();
+    if (!text || saving) return;
+    setSaving(true);
+    const note = await addDealNote(dealId, text);
+    setSaving(false);
+    if (note) {
+      setNotes((prev) => [note, ...prev]);
+      setDraft("");
+    }
+  };
+
+  const remove = async (noteId: string) => {
+    const prev = notes;
+    setNotes((n) => n.filter((x) => x.id !== noteId));
+    const ok = await deleteDealNote(dealId, noteId);
+    if (!ok) setNotes(prev); // rollback
+  };
+
+  return (
+    <div className="border-t border-outlines pt-4">
+      <span className="mb-2 block text-sm font-medium text-gray-600">Notas</span>
+
+      <div className="space-y-2">
+        <textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") add();
+          }}
+          rows={2}
+          className="input resize-none"
+          placeholder="Agregar una nota… (⌘+Enter)"
+        />
+        <div className="flex justify-end">
+          <button
+            onClick={add}
+            disabled={!draft.trim() || saving}
+            className="rounded-lg bg-surface px-3 py-1.5 text-sm font-medium text-gray-600 transition hover:bg-outlines/40 disabled:opacity-40"
+          >
+            {saving ? "Guardando…" : "Agregar nota"}
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-3 space-y-2">
+        {loading ? (
+          <p className="text-xs text-gray-400">Cargando notas…</p>
+        ) : notes.length === 0 ? (
+          <p className="text-xs text-gray-400">Sin notas todavía.</p>
+        ) : (
+          notes.map((note) => (
+            <div
+              key={note.id}
+              className="group rounded-lg border border-outlines bg-surface/40 p-3"
+            >
+              <p className="whitespace-pre-wrap text-sm text-dark">{note.content}</p>
+              <div className="mt-1.5 flex items-center justify-between">
+                <span className="text-[11px] text-gray-400">
+                  {note.authorEmail} · {fmtNoteDate(note.createdAt)}
+                </span>
+                <button
+                  onClick={() => remove(note.id)}
+                  className="text-gray-300 opacity-0 transition hover:text-danger group-hover:opacity-100"
+                  title="Eliminar nota"
+                >
+                  <HiTrash className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
   );
 }

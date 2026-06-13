@@ -1,6 +1,12 @@
 import { randomBytes } from "crypto";
 import { db } from "~/lib/db.server";
-import { getPipeline, type PipelineData, type DealCard } from "server/crm.server";
+import {
+  getPipeline,
+  listDealNotes,
+  type PipelineData,
+  type DealCard,
+  type DealNoteItem,
+} from "server/crm.server";
 import { parseBranding, type Branding } from "~/lib/json";
 
 export type ShareData =
@@ -76,6 +82,24 @@ export async function listShareLinks(workspaceId: string) {
 /** Apaga (borra) un share link. Scopeado al workspace. */
 export async function revokeShareLink(workspaceId: string, id: string) {
   await db.shareLink.deleteMany({ where: { id, workspaceId } });
+}
+
+/** Notas read-only de un deal expuesto por un token. null si el token es
+ *  inválido/expirado o el deal no corresponde al alcance del token. */
+export async function resolveShareNotes(
+  token: string,
+  dealId: string
+): Promise<DealNoteItem[] | null> {
+  const link = await db.shareLink.findUnique({ where: { token } });
+  if (!link) return null;
+  if (link.expiresAt && link.expiresAt.getTime() < Date.now()) return null;
+  // Un token de deal específico solo expone las notas de ese deal.
+  if (link.kind === "deal" && link.dealId && link.dealId !== dealId) return null;
+  try {
+    return await listDealNotes(link.workspaceId, dealId);
+  } catch {
+    return null; // deal fuera del workspace del token
+  }
 }
 
 /** Resuelve los datos read-only de un token. null si inválido/expirado. */

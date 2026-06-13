@@ -81,7 +81,7 @@ async function main() {
     create: { email, name: "Admin", passwordHash, role: "ADMIN", workspaceId: workspace.id },
   });
 
-  await seedDemoDeals(workspace.id);
+  await seedDemoDeals(workspace.id, email);
 
   console.log("✅ Seed completo");
   console.log(`   Workspace: ${workspace.name} (${workspace.id})`);
@@ -90,7 +90,7 @@ async function main() {
 
 // Oportunidades de ejemplo realistas para CoreGrid (soporte IT/Apple),
 // repartidas por las etapas para que el kanban se vea poblado en el demo.
-async function seedDemoDeals(workspaceId: string) {
+async function seedDemoDeals(workspaceId: string, authorEmail: string) {
   const existing = await db.deal.count({ where: { workspaceId } });
   if (existing > 0) return; // no duplicar en re-seed
 
@@ -101,6 +101,7 @@ async function seedDemoDeals(workspaceId: string) {
     customerName: string;
     customerPhone: string;
     tags: string[];
+    notes?: string[];
   }> = [
     { title: "Soporte 12 MacBooks — Agencia Pixela", value: 48000, stageId: "nuevo", customerName: "Pixela Studio", customerPhone: "5512345678", tags: ["Soporte", "VIP"] },
     { title: "Implementación MDM Mosyle — Tecmilenio", value: 120000, stageId: "contactado", customerName: "Tecmilenio", customerPhone: "8181234567", tags: ["Ventas", "MDM"] },
@@ -109,7 +110,11 @@ async function seedDemoDeals(workspaceId: string) {
     { title: "Setup 30 iPads aula — Maclearn", value: 89000, stageId: "cotizado", customerName: "Maclearn", customerPhone: "5544556677", tags: ["Educación", "VIP"] },
     { title: "Auditoría seguridad endpoints — EA", value: 64000, stageId: "negociacion", customerName: "EA México", customerPhone: "5566778899", tags: ["Seguridad"] },
     { title: "Contrato soporte anual — Proquifa", value: 150000, stageId: "ganado", customerName: "Proquifa", customerPhone: "5598765432", tags: ["Soporte"] },
-    { title: "Reparación lote iMac — Pixela", value: 18000, stageId: "perdido", customerName: "Pixela Studio", customerPhone: "5512345678", tags: [] },
+    { title: "Reparación lote iMac — Pixela", value: 18000, stageId: "perdido", customerName: "Pixela Studio", customerPhone: "5512345678", tags: [], notes: [
+      "Cliente pidió cotización para reparar 8 iMac con falla de pantalla. Enviamos propuesta por $18,000.",
+      "Seguimiento: comentan que el presupuesto está apretado este trimestre. Pidieron desglose por equipo.",
+      "Decidieron reemplazar los equipos en vez de repararlos. Se va con un proveedor de equipo nuevo. Marcado como perdido.",
+    ] },
   ];
 
   for (const d of demo) {
@@ -121,7 +126,7 @@ async function seedDemoDeals(workspaceId: string) {
         status: "ACTIVE",
       },
     });
-    await db.deal.create({
+    const deal = await db.deal.create({
       data: {
         workspaceId,
         conversationId: convo.id,
@@ -135,6 +140,11 @@ async function seedDemoDeals(workspaceId: string) {
         tags: JSON.stringify(d.tags),
       },
     });
+    if (d.notes?.length) {
+      await db.dealNote.createMany({
+        data: d.notes.map((content) => ({ dealId: deal.id, content, authorEmail })),
+      });
+    }
   }
   console.log(`   ${demo.length} oportunidades demo creadas`);
 }

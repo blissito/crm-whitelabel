@@ -2,8 +2,21 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { HiXMark, HiOutlineEnvelope, HiOutlinePhone } from "react-icons/hi2";
 import { cn } from "~/lib/cn";
-import type { PipelineData, DealCard, PipelineColumn } from "server/crm.server";
+import type {
+  PipelineData,
+  DealCard,
+  PipelineColumn,
+  DealNoteItem,
+} from "server/crm.server";
 import type { ShareData } from "server/share.server";
+
+const fmtNoteDate = (iso: string) =>
+  new Intl.DateTimeFormat("es-MX", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(iso));
 
 const fmtCurrency = (value: number | null, currency = "MXN") =>
   value == null
@@ -61,7 +74,51 @@ function ReadOnlyCard({ deal, onOpen }: { deal: DealCard; onOpen?: () => void })
   );
 }
 
-function DealDetail({ deal, stageName }: { deal: DealCard; stageName?: string | null }) {
+function ReadOnlyNotes({ token, dealId }: { token: string; dealId: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["share-notes", token, dealId],
+    queryFn: async (): Promise<DealNoteItem[]> => {
+      const res = await fetch(`/api/v1/share/${token}/notes/${dealId}`);
+      if (!res.ok) return [];
+      const json = await res.json();
+      return json.notes ?? [];
+    },
+    refetchInterval: 4_000,
+    refetchIntervalInBackground: false,
+  });
+
+  const notes = data ?? [];
+  if (isLoading || notes.length === 0) return null; // sin ruido si no hay notas
+
+  return (
+    <div className="border-t border-outlines pt-4">
+      <span className="mb-2 block text-sm font-medium text-gray-600">Notas</span>
+      <div className="space-y-2">
+        {notes.map((note) => (
+          <div
+            key={note.id}
+            className="rounded-lg border border-outlines bg-surface/40 p-3"
+          >
+            <p className="whitespace-pre-wrap text-sm text-dark">{note.content}</p>
+            <span className="mt-1.5 block text-[11px] text-gray-400">
+              {note.authorEmail} · {fmtNoteDate(note.createdAt)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DealDetail({
+  deal,
+  stageName,
+  token,
+}: {
+  deal: DealCard;
+  stageName?: string | null;
+  token: string;
+}) {
   const title = deal.title || deal.conversationName || "Sin título";
   return (
     <div className="space-y-4">
@@ -116,6 +173,8 @@ function DealDetail({ deal, stageName }: { deal: DealCard; stageName?: string | 
       {deal.source && (
         <p className="text-xs text-gray-400">Origen: {deal.source}</p>
       )}
+
+      <ReadOnlyNotes token={token} dealId={deal.id} />
     </div>
   );
 }
@@ -123,10 +182,12 @@ function DealDetail({ deal, stageName }: { deal: DealCard; stageName?: string | 
 function DetailModal({
   deal,
   stageName,
+  token,
   onClose,
 }: {
   deal: DealCard;
   stageName?: string | null;
+  token: string;
   onClose: () => void;
 }) {
   return (
@@ -145,7 +206,7 @@ function DetailModal({
         >
           <HiXMark className="h-5 w-5" />
         </button>
-        <DealDetail deal={deal} stageName={stageName} />
+        <DealDetail deal={deal} stageName={stageName} token={token} />
       </div>
     </div>
   );
@@ -224,7 +285,7 @@ export function SharedView({ token, initial }: { token: string; initial: ShareDa
         <div className="mx-auto max-w-md p-6">
           {data.deal ? (
             <div className="rounded-2xl border border-outlines bg-white p-6 shadow-sm">
-              <DealDetail deal={data.deal} stageName={data.stageName} />
+              <DealDetail deal={data.deal} stageName={data.stageName} token={token} />
             </div>
           ) : (
             <p className="rounded-xl border border-outlines bg-white p-6 text-center text-sm text-gray-400">
@@ -257,7 +318,12 @@ export function SharedView({ token, initial }: { token: string; initial: ShareDa
         </div>
       </div>
       {open && (
-        <DetailModal deal={open.deal} stageName={open.stageName} onClose={() => setOpen(null)} />
+        <DetailModal
+          deal={open.deal}
+          stageName={open.stageName}
+          token={token}
+          onClose={() => setOpen(null)}
+        />
       )}
     </div>
   );

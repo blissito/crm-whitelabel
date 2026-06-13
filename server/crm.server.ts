@@ -271,6 +271,69 @@ export async function deleteDeal(workspaceId: string, dealId: string) {
   return db.deal.delete({ where: { id: dealId } });
 }
 
+// ─── Notas de un deal ────────────────────────────────────────────────────
+export type DealNoteItem = {
+  id: string;
+  content: string;
+  authorEmail: string;
+  createdAt: string;
+};
+
+/** Verifica que el deal pertenezca al workspace (ownership) y devuelve su id. */
+async function assertDealInWorkspace(workspaceId: string, dealId: string) {
+  const deal = await db.deal.findFirst({
+    where: { id: dealId, workspaceId },
+    select: { id: true },
+  });
+  if (!deal) throw new Error("Deal no encontrado");
+}
+
+export async function listDealNotes(
+  workspaceId: string,
+  dealId: string
+): Promise<DealNoteItem[]> {
+  await assertDealInWorkspace(workspaceId, dealId);
+  const notes = await db.dealNote.findMany({
+    where: { dealId },
+    orderBy: { createdAt: "desc" },
+  });
+  return notes.map((n) => ({
+    id: n.id,
+    content: n.content,
+    authorEmail: n.authorEmail,
+    createdAt: n.createdAt.toISOString(),
+  }));
+}
+
+export async function addDealNote(
+  workspaceId: string,
+  dealId: string,
+  content: string,
+  authorEmail: string
+): Promise<DealNoteItem> {
+  await assertDealInWorkspace(workspaceId, dealId);
+  const text = content.trim();
+  if (!text) throw new Error("La nota está vacía");
+  const note = await db.dealNote.create({
+    data: { dealId, content: text, authorEmail },
+  });
+  return {
+    id: note.id,
+    content: note.content,
+    authorEmail: note.authorEmail,
+    createdAt: note.createdAt.toISOString(),
+  };
+}
+
+export async function deleteDealNote(
+  workspaceId: string,
+  dealId: string,
+  noteId: string
+): Promise<void> {
+  await assertDealInWorkspace(workspaceId, dealId);
+  await db.dealNote.deleteMany({ where: { id: noteId, dealId } });
+}
+
 async function firstStageId(workspaceId: string): Promise<string> {
   const ws = await db.workspace.findUnique({
     where: { id: workspaceId },

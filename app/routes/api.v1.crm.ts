@@ -7,6 +7,9 @@ import {
   moveDeal,
   deleteDeal,
   savePipeline,
+  listDealNotes,
+  addDealNote,
+  deleteDealNote,
   type DealInput,
 } from "server/crm.server";
 import { createShareLink } from "server/share.server";
@@ -96,6 +99,37 @@ export async function action({ request }: Route.ActionArgs) {
           action: "pipeline.updated",
           targetType: "pipeline",
           targetLabel: `${Array.isArray(body.stages) ? body.stages.length : 0} etapas`,
+        });
+        return Response.json({ ok: true });
+      }
+      case "list_deal_notes": {
+        const notes = await listDealNotes(workspaceId, body.dealId);
+        return Response.json({ ok: true, notes });
+      }
+      case "add_deal_note": {
+        const note = await addDealNote(
+          workspaceId,
+          body.dealId,
+          body.content,
+          userEmail ?? actor.email ?? "desconocido"
+        );
+        await logAction({
+          workspaceId,
+          actor,
+          action: "deal.note_added",
+          targetType: "deal",
+          targetId: body.dealId,
+        });
+        return Response.json({ ok: true, note });
+      }
+      case "delete_deal_note": {
+        await deleteDealNote(workspaceId, body.dealId, body.noteId);
+        await logAction({
+          workspaceId,
+          actor,
+          action: "deal.note_deleted",
+          targetType: "deal",
+          targetId: body.dealId,
         });
         return Response.json({ ok: true });
       }

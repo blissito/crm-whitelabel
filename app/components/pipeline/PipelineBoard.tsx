@@ -40,6 +40,7 @@ import type { PipelineColumn, DealCard, PipelineData } from "server/crm.server";
 import type { PipelineStage } from "~/lib/json";
 import { DealDrawer } from "./DealDrawer";
 import { ColumnsEditor } from "./ColumnsEditor";
+import { ShareButton } from "~/components/ShareButton";
 
 const fmtCurrency = (value: number | null, currency = "MXN") =>
   value == null
@@ -233,6 +234,7 @@ export function PipelineBoard({
           />
         </div>
         <div className="flex items-center gap-2">
+          <ShareButton kind="pipeline" label="Compartir" />
           <button
             onClick={() => setEditColumns(true)}
             title="Editar etapas"
