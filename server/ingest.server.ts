@@ -158,7 +158,9 @@ export async function ingestMirrorEvent(ev: MirrorEvent): Promise<IngestResult> 
           mediaType: msg.media.type ?? null,
           mediaMime: msg.media.mime ?? null,
           mediaFilename: msg.media.filename ?? null,
-          mediaFileId: msg.media.fileId ?? null,
+          // Stickers traen data URL en media.url (sin fileId); el resto trae fileId
+          // durable. Guardamos lo que haya: el render decide proxy vs. URL directa.
+          mediaFileId: msg.media.fileId ?? msg.media.url ?? null,
         }),
       },
     });

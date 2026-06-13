@@ -122,7 +122,12 @@ function MessageMedia({ message: m, fromUs }: { message: MessageItem; fromUs: bo
     return <span className="text-2xl">{m.reactionEmoji ?? "👍"}</span>;
   }
   if (!m.mediaType || !m.mediaFileId) return null;
-  const src = `/api/media/${m.mediaFileId}`;
+  // Stickers/inline: URL directa (data: o http). Resto: proxy server-side por fileId.
+  const ref = m.mediaFileId;
+  const src =
+    ref.startsWith("data:") || ref.startsWith("http")
+      ? ref
+      : `/api/media/${encodeURIComponent(ref)}`;
 
   switch (m.mediaType) {
     case "image":
