@@ -2,9 +2,10 @@ import { Form, Link, redirect, useNavigation } from "react-router";
 import type { Route } from "./+types/recuperar";
 import { getUser, createPasswordReset } from "server/auth.server";
 import { sendPasswordResetEmail } from "server/email.server";
+import { siteMeta } from "~/lib/meta";
 
 export function meta() {
-  return [{ title: "Recuperar contraseña · CRM CoreGrid" }];
+  return siteMeta({ title: "Recuperar contraseña · CoreGrid CRM" });
 }
 
 export async function loader({ request }: Route.LoaderArgs) {

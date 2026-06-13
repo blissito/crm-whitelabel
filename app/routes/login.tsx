@@ -1,9 +1,10 @@
 import { Form, Link, redirect, useNavigation } from "react-router";
 import type { Route } from "./+types/login";
 import { getUser, verifyLogin, createUserSession } from "server/auth.server";
+import { siteMeta } from "~/lib/meta";
 
 export function meta() {
-  return [{ title: "Iniciar sesión · CRM CoreGrid" }];
+  return siteMeta({ title: "Iniciar sesión · CoreGrid CRM" });
 }
 
 export async function loader({ request }: Route.LoaderArgs) {

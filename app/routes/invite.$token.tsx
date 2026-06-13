@@ -2,9 +2,10 @@ import { Form, redirect, useNavigation } from "react-router";
 import type { Route } from "./+types/invite.$token";
 import { getUserId, createUserSession } from "server/auth.server";
 import { resolveInvitation, acceptInvitation } from "server/team.server";
+import { siteMeta } from "~/lib/meta";
 
 export function meta() {
-  return [{ title: "Invitación · CRM CoreGrid" }, { name: "robots", content: "noindex" }];
+  return siteMeta({ title: "Invitación · CoreGrid CRM", noindex: true });
 }
 
 export async function loader({ request, params }: Route.LoaderArgs) {

@@ -1,9 +1,10 @@
 import { Form, Link, redirect, useNavigation } from "react-router";
 import type { Route } from "./+types/register";
 import { getUserId, registerNewTenant, createUserSession } from "server/auth.server";
+import { siteMeta } from "~/lib/meta";
 
 export function meta() {
-  return [{ title: "Crear cuenta · CRM CoreGrid" }];
+  return siteMeta({ title: "Crear cuenta · CoreGrid CRM" });
 }
 
 export async function loader({ request }: Route.LoaderArgs) {

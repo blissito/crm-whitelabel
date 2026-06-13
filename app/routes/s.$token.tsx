@@ -1,9 +1,10 @@
 import type { Route } from "./+types/s.$token";
 import { resolveShareData } from "server/share.server";
 import { SharedView } from "~/components/share/SharedView";
+import { siteMeta } from "~/lib/meta";
 
 export function meta() {
-  return [{ title: "CRM CoreGrid" }, { name: "robots", content: "noindex" }];
+  return siteMeta({ title: "Vista compartida · CoreGrid CRM", noindex: true });
 }
 
 export async function loader({ params }: Route.LoaderArgs) {

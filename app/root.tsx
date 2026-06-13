@@ -9,7 +9,10 @@ import {
 } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Route } from "./+types/root";
+import { siteMeta } from "~/lib/meta";
 import "./app.css";
+
+export const meta: Route.MetaFunction = () => siteMeta();
 
 export const links: Route.LinksFunction = () => [
   { rel: "icon", type: "image/png", href: "/brand/coregrid-logo.png" },

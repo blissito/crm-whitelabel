@@ -1,9 +1,10 @@
 import { Form, redirect, useNavigation } from "react-router";
 import type { Route } from "./+types/reset.$token";
 import { getUser, resolvePasswordReset, resetPassword, createUserSession } from "server/auth.server";
+import { siteMeta } from "~/lib/meta";
 
 export function meta() {
-  return [{ title: "Nueva contraseña · CRM CoreGrid" }, { name: "robots", content: "noindex" }];
+  return siteMeta({ title: "Nueva contraseña · CoreGrid CRM", noindex: true });
 }
 
 export async function loader({ request, params }: Route.LoaderArgs) {
