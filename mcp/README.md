@@ -12,13 +12,14 @@ para que un agente lo opere y pruebe.
 | `update_deal` | Actualiza título/valor/cliente/etiquetas/etapa |
 | `move_deal` | Mueve una oportunidad a otra etapa |
 | `delete_deal` | Elimina una oportunidad |
+| `create_share_link` | Genera un link público de solo lectura (tablero completo o una oportunidad) |
 
 ## Configuración
 
 Variables de entorno:
 
 - `CRM_API_KEY` (requerido) — bearer token del workspace.
-- `CRM_API_URL` (opcional) — base del CRM. Default `https://crm-coregrid.fly.dev`.
+- `CRM_API_URL` (opcional) — base del CRM. Default `https://crm.coregrid.com.mx`.
 
 ## Uso con un agente (config MCP)
 

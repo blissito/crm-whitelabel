@@ -3,7 +3,7 @@
 // Expone el pipeline de ventas como tools para que un agente lo opere/pruebe.
 //
 // Configuración (env):
-//   CRM_API_URL  — base del CRM (default https://crm-coregrid.fly.dev)
+//   CRM_API_URL  — base del CRM (default https://crm.coregrid.com.mx)
 //   CRM_API_KEY  — bearer token del workspace (requerido)
 //
 // Uso típico (config de un agente MCP):
@@ -17,7 +17,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 
-const API_URL = (process.env.CRM_API_URL || "https://crm-coregrid.fly.dev").replace(/\/$/, "");
+const API_URL = (process.env.CRM_API_URL || "https://crm.coregrid.com.mx").replace(/\/$/, "");
 const API_KEY = process.env.CRM_API_KEY;
 
 if (!API_KEY) {
