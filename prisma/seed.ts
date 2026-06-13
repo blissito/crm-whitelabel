@@ -70,11 +70,15 @@ async function main() {
   });
   if (apiKey) console.log(`   API key configurada para MCP`);
 
-  // Cuenta admin (dev/demo). Password de SEED_ADMIN_PASSWORD; default
-  // coregrid123 (⚠️ temporal — repo público).
+  // Cuenta admin (dev/demo). Password desde SEED_ADMIN_PASSWORD (requerido).
   const bcrypt = (await import("bcryptjs")).default;
   const email = process.env.SEED_ADMIN_EMAIL || "admin@coregrid.com.mx";
-  const passwordHash = await bcrypt.hash(process.env.SEED_ADMIN_PASSWORD || "coregrid123", 12);
+  const password = process.env.SEED_ADMIN_PASSWORD;
+  if (!password) {
+    console.error("❌ SEED_ADMIN_PASSWORD no está definido. Setealo en .env (local) o Fly secrets (prod).");
+    process.exit(1);
+  }
+  const passwordHash = await bcrypt.hash(password, 12);
   await db.user.upsert({
     where: { email },
     update: { passwordHash, role: "ADMIN" },

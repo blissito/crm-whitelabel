@@ -29,6 +29,13 @@ primary_region = "dfw"
   min_machines_running = 1
   processes = ["app"]
 
+  [[http_service.checks]]
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/api/ingest/message"
+
 [[vm]]
   size = "shared-cpu-1x"
   memory = "512mb"
