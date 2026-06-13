@@ -20,7 +20,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   if (channelCount === 0) {
     return { hasChannel: false as const, conversations: [] as ConversationItem[] };
   }
-  const conversations = await listConversations(workspaceId);
+  const conversations = await listConversations(workspaceId, { hasMessages: true });
   return { hasChannel: true as const, conversations };
 }
 

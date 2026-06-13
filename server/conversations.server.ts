@@ -35,12 +35,20 @@ function phoneFromSession(sessionId: string): string | null {
 
 export async function listConversations(
   workspaceId: string,
-  opts: { search?: string; status?: string; limit?: number } = {}
+  opts: {
+    search?: string;
+    status?: string;
+    limit?: number;
+    hasMessages?: boolean;
+  } = {}
 ): Promise<ConversationItem[]> {
   const search = opts.search?.trim();
   const rows = await db.conversation.findMany({
     where: {
       workspaceId,
+      // El inbox solo muestra chats reales; las conversaciones contenedoras de
+      // deals demo (0 mensajes) se excluyen.
+      ...(opts.hasMessages ? { messageCount: { gt: 0 } } : {}),
       ...(opts.status ? { status: opts.status } : {}),
       ...(search
         ? {
