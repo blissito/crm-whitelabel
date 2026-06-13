@@ -14,7 +14,6 @@ import {
   HiOutlineKey,
   HiOutlineUserGroup,
   HiOutlinePuzzlePiece,
-  HiOutlineCog6Tooth,
   HiOutlineClock,
   HiOutlineShieldCheck,
   HiChevronDoubleLeft,
@@ -54,10 +53,7 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
   // Panel admin solo super-admin.
   const SECONDARY = [
     ...(admin
-      ? [
-          { to: "/app/ajustes", label: "Ajustes", Icon: HiOutlineCog6Tooth },
-          { to: "/app/actividad", label: "Actividad", Icon: HiOutlineClock },
-        ]
+      ? [{ to: "/app/actividad", label: "Actividad", Icon: HiOutlineClock }]
       : []),
     { to: "/app/equipo", label: "Equipo", Icon: HiOutlineUserGroup },
     { to: "/app/cuenta", label: "Mi cuenta", Icon: HiOutlineKey },

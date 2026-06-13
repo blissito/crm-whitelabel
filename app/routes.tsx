@@ -27,7 +27,6 @@ export default [
     route("app/escalaciones", "routes/app.escalaciones.tsx"),
     route("app/integraciones", "routes/app.integraciones.tsx"),
     route("app/equipo", "routes/app.equipo.tsx"),
-    route("app/ajustes", "routes/app.ajustes.tsx"),
     route("app/actividad", "routes/app.actividad.tsx"),
     route("app/cuenta", "routes/app.cuenta.tsx"),
   ]),
