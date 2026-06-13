@@ -92,6 +92,12 @@ export default function Login({ actionData }: Route.ComponentProps) {
             </button>
           </Form>
 
+          <p className="mt-3 text-center text-sm">
+            <Link to="/recuperar" className="text-gray-400 hover:text-gray-600">
+              ¿Olvidaste tu contraseña?
+            </Link>
+          </p>
+
           <p className="mt-5 text-center text-sm text-gray-500">
             ¿No tienes cuenta?{" "}
             <Link to="/register" className="font-semibold text-brand-500 hover:text-brand-600">

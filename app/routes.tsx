@@ -9,6 +9,8 @@ export default [
   index("routes/_index.tsx"),
   route("login", "routes/login.tsx"),
   route("register", "routes/register.tsx"),
+  route("recuperar", "routes/recuperar.tsx"),
+  route("reset/:token", "routes/reset.$token.tsx"),
   route("logout", "routes/logout.tsx"),
 
   // Público (solo-lectura por token)

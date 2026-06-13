@@ -114,6 +114,23 @@ export function sendInviteEmail(opts: {
   return sendEmail({ to: opts.to, subject: `Invitación a ${opts.workspaceName}`, html });
 }
 
+/** Email de recuperación de contraseña. */
+export function sendPasswordResetEmail(opts: {
+  to: string;
+  resetUrl: string;
+  baseUrl?: string;
+}): Promise<boolean> {
+  const html = brandedEmail({
+    baseUrl: opts.baseUrl || DEFAULT_BASE,
+    heading: "Recupera tu contraseña",
+    intro: "Recibimos una solicitud para restablecer tu contraseña. El enlace vence en 1 hora.",
+    ctaText: "Crear nueva contraseña",
+    ctaUrl: opts.resetUrl,
+    footnote: "Si no lo solicitaste, ignora este correo; tu contraseña no cambia.",
+  });
+  return sendEmail({ to: opts.to, subject: "Recupera tu contraseña · CoreGrid", html });
+}
+
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!)

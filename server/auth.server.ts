@@ -90,6 +90,55 @@ function slugify(s: string): string {
   );
 }
 
+// ─── Recuperación de contraseña ──────────────────────────────────────────
+const RESET_TTL_MIN = 60; // 1 hora
+
+/** Crea un token de reseteo para el email (si existe). Devuelve {user, token}
+ *  o null. No revela si el email existe (manéjalo en la ruta). */
+export async function createPasswordReset(
+  email: string
+): Promise<{ token: string; name: string | null } | null> {
+  const user = await db.user.findUnique({
+    where: { email: email.trim().toLowerCase() },
+    select: { id: true, name: true },
+  });
+  if (!user) return null;
+  const token = `rst_${randomBytes(24).toString("hex")}`;
+  await db.user.update({
+    where: { id: user.id },
+    data: { resetToken: token, resetExpires: new Date(Date.now() + RESET_TTL_MIN * 60_000) },
+  });
+  return { token, name: user.name };
+}
+
+/** Valida un token de reseteo. Devuelve el email o null. */
+export async function resolvePasswordReset(token: string): Promise<string | null> {
+  const user = await db.user.findUnique({
+    where: { resetToken: token },
+    select: { email: true, resetExpires: true },
+  });
+  if (!user?.resetExpires || user.resetExpires.getTime() < Date.now()) return null;
+  return user.email;
+}
+
+/** Aplica la nueva contraseña y consume el token. Devuelve el userId o null. */
+export async function resetPassword(
+  token: string,
+  newPassword: string
+): Promise<string | null> {
+  const user = await db.user.findUnique({
+    where: { resetToken: token },
+    select: { id: true, resetExpires: true },
+  });
+  if (!user?.resetExpires || user.resetExpires.getTime() < Date.now()) return null;
+  const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+  await db.user.update({
+    where: { id: user.id },
+    data: { passwordHash, resetToken: null, resetExpires: null },
+  });
+  return user.id;
+}
+
 /** Valida credenciales. Devuelve el user o null. */
 export async function verifyLogin(email: string, password: string) {
   const user = await db.user.findUnique({
