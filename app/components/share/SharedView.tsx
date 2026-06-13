@@ -252,7 +252,9 @@ function ReadOnlyColumn({
 function SharedHeader({ name, logoUrl }: { name: string; logoUrl?: string }) {
   return (
     <header className="flex items-center gap-3 border-b border-white/10 bg-dark px-6 py-4">
-      {logoUrl && <img src={logoUrl} alt={name} className="h-8 w-auto object-contain" />}
+      {logoUrl && (
+        <img src={logoUrl} alt={name} className="h-12 w-auto object-contain sm:h-14" />
+      )}
       <span className="text-sm font-medium text-white/80">{name}</span>
       <span className="ml-auto rounded-full bg-white/10 px-2.5 py-1 text-xs text-white/60">
         Solo lectura
