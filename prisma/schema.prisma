@@ -37,6 +37,37 @@ model Workspace {
   whatsappChannels WhatsAppChannel[]
   shareLinks       ShareLink[]
   invitations      Invitation[]
+  auditLogs        AuditLog[]
+}
+
+// ─── AUDIT LOG (blame de acciones; estándar resource.verb) ────────────────
+// Cubre acciones desde la UI (colaboradores) y por API key (agentes).
+model AuditLog {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  // Actor (quién)
+  actorType  String // "user" | "agent" | "system"
+  actorEmail String? // identidad legible (null = llave de tablero)
+  actorId    String? // userId si aplica
+
+  // Fuente (cómo)
+  via String // "dashboard" | "api_key"
+
+  // Acción (qué) — verbo namespaced: "deal.moved", "key.regenerated", …
+  action String
+
+  // Objeto (sobre qué)
+  targetType  String? // "deal" | "pipeline" | "key" | "share" | "member" | "workspace"
+  targetId    String?
+  targetLabel String? // texto legible del objeto
+
+  metadata  String? // JSON con detalle/cambios
+  createdAt DateTime @default(now())
+
+  @@index([workspaceId, createdAt])
+  @@index([action])
 }
 
 // ─── AUTH (email/password) ───────────────────────────────────────────────

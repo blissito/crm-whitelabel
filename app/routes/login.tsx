@@ -1,13 +1,15 @@
 import { Form, Link, redirect, useNavigation } from "react-router";
 import type { Route } from "./+types/login";
-import { getUserId, verifyLogin, createUserSession } from "server/auth.server";
+import { getUser, verifyLogin, createUserSession } from "server/auth.server";
 
 export function meta() {
   return [{ title: "Iniciar sesión · CRM CoreGrid" }];
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
-  if (await getUserId(request)) throw redirect("/app");
+  // Verifica que el user EXISTA (no solo la cookie): una cookie con un userId
+  // de un user borrado causaba loop de redirección /login↔/app.
+  if (await getUser(request)) throw redirect("/app");
   return null;
 }
 

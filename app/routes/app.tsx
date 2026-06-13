@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Form, NavLink, Outlet } from "react-router";
 import type { Route } from "./+types/app";
-import { getUserOrRedirect } from "server/auth.server";
+import { getUserOrRedirect, isAdmin, isSuperAdmin } from "server/auth.server";
 import { db } from "~/lib/db.server";
 import { parseBranding } from "~/lib/json";
 import { cn } from "~/lib/cn";
@@ -14,6 +14,9 @@ import {
   HiOutlineKey,
   HiOutlineUserGroup,
   HiOutlinePuzzlePiece,
+  HiOutlineCog6Tooth,
+  HiOutlineClock,
+  HiOutlineShieldCheck,
   HiChevronDoubleLeft,
   HiChevronDoubleRight,
 } from "react-icons/hi2";
@@ -28,6 +31,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     user: { email: user.email, name: user.name },
     workspaceName: workspace?.name ?? "CRM",
     branding: parseBranding(workspace?.branding),
+    admin: isAdmin(user),
+    superAdmin: isSuperAdmin(user),
   };
 }
 
@@ -39,16 +44,27 @@ const NAV = [
   { to: "/app/integraciones", label: "Integraciones", Icon: HiOutlinePuzzlePiece },
 ];
 
-const SECONDARY = [
-  { to: "/app/equipo", label: "Equipo", Icon: HiOutlineUserGroup },
-  { to: "/app/cuenta", label: "Mi cuenta", Icon: HiOutlineKey },
-];
-
 const STORAGE_KEY = "crm.sidebar.collapsed";
 
 export default function AppLayout({ loaderData }: Route.ComponentProps) {
-  const { user, workspaceName, branding } = loaderData;
+  const { user, workspaceName, branding, admin, superAdmin } = loaderData;
   const logo = branding?.logoUrl ?? "/brand/coregrid-logo.png";
+
+  // Menú secundario: Equipo/Mi cuenta siempre; Ajustes/Actividad solo admin;
+  // Panel admin solo super-admin.
+  const SECONDARY = [
+    ...(admin
+      ? [
+          { to: "/app/ajustes", label: "Ajustes", Icon: HiOutlineCog6Tooth },
+          { to: "/app/actividad", label: "Actividad", Icon: HiOutlineClock },
+        ]
+      : []),
+    { to: "/app/equipo", label: "Equipo", Icon: HiOutlineUserGroup },
+    { to: "/app/cuenta", label: "Mi cuenta", Icon: HiOutlineKey },
+    ...(superAdmin
+      ? [{ to: "/admin", label: "Panel admin", Icon: HiOutlineShieldCheck }]
+      : []),
+  ];
 
   const [collapsed, setCollapsed] = useState(false);
   // Persistir preferencia (se lee en cliente para evitar mismatch SSR).

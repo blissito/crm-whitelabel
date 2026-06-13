@@ -27,6 +27,15 @@ export default [
     route("app/escalaciones", "routes/app.escalaciones.tsx"),
     route("app/integraciones", "routes/app.integraciones.tsx"),
     route("app/equipo", "routes/app.equipo.tsx"),
+    route("app/ajustes", "routes/app.ajustes.tsx"),
+    route("app/actividad", "routes/app.actividad.tsx"),
     route("app/cuenta", "routes/app.cuenta.tsx"),
+  ]),
+
+  // Panel de plataforma (super-admin, cross-tenant)
+  layout("routes/admin.tsx", [
+    route("admin", "routes/admin._index.tsx"),
+    route("admin/usuarios", "routes/admin.usuarios.tsx"),
+    route("admin/actividad", "routes/admin.actividad.tsx"),
   ]),
 ] satisfies RouteConfig;

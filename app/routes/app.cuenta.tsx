@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Form, useNavigation } from "react-router";
+import { useFetcher } from "react-router";
 import {
   HiKey,
   HiClipboard,
@@ -10,6 +10,7 @@ import {
 import { SiNpm } from "react-icons/si";
 import type { Route } from "./+types/app.cuenta";
 import { requireWorkspace, generateApiKey, isAdmin } from "server/auth.server";
+import { logAction } from "server/audit.server";
 import { db } from "~/lib/db.server";
 
 export function meta() {
@@ -52,18 +53,28 @@ export async function action({ request }: Route.ActionArgs) {
   const apiKey = generateApiKey();
   // Regenera la llave que se muestra: la personal si existe; si no y es
   // admin, la del tablero (la que ya usan los agentes).
-  if (dbUser?.apiKey || !isAdmin(user)) {
+  const scope = dbUser?.apiKey || !isAdmin(user) ? "personal" : "tablero";
+  if (scope === "personal") {
     await db.user.update({ where: { id: user.id }, data: { apiKey } });
   } else {
     await db.workspace.update({ where: { id: user.workspaceId }, data: { apiKey } });
   }
+  await logAction({
+    workspaceId: user.workspaceId,
+    actor: { type: "user", email: user.email, id: user.id, via: "dashboard" },
+    action: "key.regenerated",
+    targetType: "key",
+    targetLabel: scope === "personal" ? "llave personal" : "llave del tablero",
+  });
   return { ok: true };
 }
 
 export default function Cuenta({ loaderData }: Route.ComponentProps) {
   const { email, name, apiKey, workspaceApiKey, apiUrl } = loaderData;
-  const nav = useNavigation();
-  const busy = nav.state !== "idle";
+  // Fetcher scopeado: el spinner gira SOLO durante esta acción, no en cada
+  // navegación global.
+  const fetcher = useFetcher();
+  const busy = fetcher.state !== "idle";
 
   const effectiveKey = apiKey ?? workspaceApiKey;
   const keyForCfg = effectiveKey ?? "TU_LLAVE";
@@ -115,7 +126,7 @@ export default function Cuenta({ loaderData }: Route.ComponentProps) {
           </p>
         )}
 
-        <Form method="post" className="mt-4">
+        <fetcher.Form method="post" className="mt-4">
           <button
             type="submit"
             disabled={busy}
@@ -129,7 +140,7 @@ export default function Cuenta({ loaderData }: Route.ComponentProps) {
               ? "Regenerar invalida la llave actual; vuelve a pegarla en tu agente."
               : "Genera una llave nueva para tu agente."}
           </span>
-        </Form>
+        </fetcher.Form>
       </section>
 
       <section className="mt-6 rounded-2xl border border-outlines bg-white p-6">

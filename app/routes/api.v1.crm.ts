@@ -1,5 +1,5 @@
 import type { Route } from "./+types/api.v1.crm";
-import { requireApiContext } from "server/auth.server";
+import { requireApiContext, type ApiContext } from "server/auth.server";
 import {
   getPipeline,
   createDeal,
@@ -10,6 +10,7 @@ import {
   type DealInput,
 } from "server/crm.server";
 import { createShareLink } from "server/share.server";
+import { logAction, type AuditActor } from "server/audit.server";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const { workspaceId } = await requireApiContext(request);
@@ -17,8 +18,20 @@ export async function loader({ request }: Route.LoaderArgs) {
   return Response.json(data);
 }
 
+// Actor para el audit log a partir del contexto (UI o API key).
+function auditActor(ctx: ApiContext): AuditActor {
+  return {
+    type: ctx.via === "api_key" ? "agent" : "user",
+    email: ctx.userEmail,
+    id: ctx.userId,
+    via: ctx.via,
+  };
+}
+
 export async function action({ request }: Route.ActionArgs) {
-  const { workspaceId, userEmail } = await requireApiContext(request);
+  const ctx = await requireApiContext(request);
+  const { workspaceId, userEmail } = ctx;
+  const actor = auditActor(ctx);
   const body = await request.json();
   const intent = body.intent as string;
 
@@ -26,36 +39,82 @@ export async function action({ request }: Route.ActionArgs) {
     switch (intent) {
       case "create_deal": {
         const input = body.deal as DealInput;
-        // Atribuir al dueño de la llave si no se indicó vendedor.
         if (userEmail && input.assignedTo === undefined) input.assignedTo = userEmail;
         const deal = await createDeal(workspaceId, input);
+        await logAction({
+          workspaceId,
+          actor,
+          action: "deal.created",
+          targetType: "deal",
+          targetId: deal.id,
+          targetLabel: input.title ?? deal.id,
+        });
         return Response.json({ ok: true, dealId: deal.id });
       }
       case "update_deal": {
         await updateDeal(workspaceId, body.dealId, body.deal as DealInput);
+        await logAction({
+          workspaceId,
+          actor,
+          action: "deal.updated",
+          targetType: "deal",
+          targetId: body.dealId,
+          targetLabel: (body.deal as DealInput)?.title ?? undefined,
+          metadata: body.deal,
+        });
         return Response.json({ ok: true });
       }
       case "move_deal": {
         await moveDeal(workspaceId, body.dealId, body.stageId, body.position);
+        await logAction({
+          workspaceId,
+          actor,
+          action: "deal.moved",
+          targetType: "deal",
+          targetId: body.dealId,
+          targetLabel: `→ ${body.stageId}`,
+          metadata: { stageId: body.stageId, position: body.position },
+        });
         return Response.json({ ok: true });
       }
       case "delete_deal": {
         await deleteDeal(workspaceId, body.dealId);
+        await logAction({
+          workspaceId,
+          actor,
+          action: "deal.deleted",
+          targetType: "deal",
+          targetId: body.dealId,
+        });
         return Response.json({ ok: true });
       }
       case "save_pipeline": {
         await savePipeline(workspaceId, body.stages);
+        await logAction({
+          workspaceId,
+          actor,
+          action: "pipeline.updated",
+          targetType: "pipeline",
+          targetLabel: `${Array.isArray(body.stages) ? body.stages.length : 0} etapas`,
+        });
         return Response.json({ ok: true });
       }
       case "create_share_link": {
-        // Honra X-Forwarded-Proto (Fly termina TLS → request interno es http).
         const url = new URL(request.url);
         const proto = request.headers.get("x-forwarded-proto") || url.protocol.replace(":", "");
         const origin = `${proto}://${url.host}`;
+        const kind = body.kind === "deal" ? "deal" : "pipeline";
         const token = await createShareLink(workspaceId, {
-          kind: body.kind === "deal" ? "deal" : "pipeline",
+          kind,
           dealId: body.dealId,
           expiresHours: body.expiresHours,
+        });
+        await logAction({
+          workspaceId,
+          actor,
+          action: "share.created",
+          targetType: "share",
+          targetLabel: kind,
         });
         return Response.json({ ok: true, url: `${origin}/s/${token}` });
       }

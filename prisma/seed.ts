@@ -70,13 +70,22 @@ async function main() {
   });
   if (apiKey) console.log(`   API key configurada para MCP`);
 
-  // Sin usuario admin sembrado: las cuentas se crean por signup (/register).
-  // El workspace existe para anclar la apiKey que usan los agentes (ghosty).
+  // Cuenta admin (dev/demo). Password de SEED_ADMIN_PASSWORD; default
+  // coregrid123 (⚠️ temporal — repo público).
+  const bcrypt = (await import("bcryptjs")).default;
+  const email = process.env.SEED_ADMIN_EMAIL || "admin@coregrid.com.mx";
+  const passwordHash = await bcrypt.hash(process.env.SEED_ADMIN_PASSWORD || "coregrid123", 12);
+  await db.user.upsert({
+    where: { email },
+    update: { passwordHash, role: "ADMIN" },
+    create: { email, name: "Admin", passwordHash, role: "ADMIN", workspaceId: workspace.id },
+  });
 
   await seedDemoDeals(workspace.id);
 
   console.log("✅ Seed completo");
   console.log(`   Workspace: ${workspace.name} (${workspace.id})`);
+  console.log(`   Admin: ${email} (ADMIN)`);
 }
 
 // Oportunidades de ejemplo realistas para CoreGrid (soporte IT/Apple),

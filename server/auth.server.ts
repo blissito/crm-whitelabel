@@ -156,6 +156,7 @@ export type ApiContext = {
   workspaceId: string;
   userId: string | null;
   userEmail: string | null;
+  via: "dashboard" | "api_key";
 };
 
 /** Resuelve el contexto desde `Authorization: Bearer <apiKey>`. La llave es
@@ -175,7 +176,12 @@ export async function getApiContext(
     select: { id: true, email: true, workspaceId: true },
   });
   if (user) {
-    return { workspaceId: user.workspaceId, userId: user.id, userEmail: user.email };
+    return {
+      workspaceId: user.workspaceId,
+      userId: user.id,
+      userEmail: user.email,
+      via: "api_key",
+    };
   }
 
   // 2) Llave de workspace (org).
@@ -183,7 +189,7 @@ export async function getApiContext(
     where: { apiKey: token },
     select: { id: true },
   });
-  if (ws) return { workspaceId: ws.id, userId: null, userEmail: null };
+  if (ws) return { workspaceId: ws.id, userId: null, userEmail: null, via: "api_key" };
 
   return null;
 }
@@ -195,7 +201,12 @@ export async function requireApiContext(request: Request): Promise<ApiContext> {
   if (fromKey) return fromKey;
   const user = await getUser(request);
   if (user) {
-    return { workspaceId: user.workspaceId, userId: user.id, userEmail: user.email };
+    return {
+      workspaceId: user.workspaceId,
+      userId: user.id,
+      userEmail: user.email,
+      via: "dashboard",
+    };
   }
   throw new Response("No autorizado", { status: 401 });
 }
@@ -226,6 +237,28 @@ export async function requireAdmin(request: Request): Promise<SessionUser> {
   const user = await getUserOrRedirect(request);
   if (!isAdmin(user)) {
     throw new Response("No autorizado", { status: 403 });
+  }
+  return user;
+}
+
+// ─── Super-admin (operador de la plataforma) ─────────────────────────────
+/** Emails super-admin desde env SUPER_ADMINS (CSV). */
+export function getSuperAdminEmails(): string[] {
+  return (process.env.SUPER_ADMINS || "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+export function isSuperAdmin(user: { email: string }): boolean {
+  return getSuperAdminEmails().includes(user.email.toLowerCase());
+}
+
+/** Exige super-admin. 404 si no (no revela la existencia del panel). */
+export async function requireSuperAdmin(request: Request): Promise<SessionUser> {
+  const user = await getUser(request);
+  if (!user || !isSuperAdmin(user)) {
+    throw new Response("Not Found", { status: 404 });
   }
   return user;
 }
