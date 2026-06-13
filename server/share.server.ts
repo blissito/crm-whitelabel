@@ -46,6 +46,38 @@ export async function createShareLink(
   return token;
 }
 
+/** Lista los share links activos (no expirados) de un tablero, con el título
+ *  del deal si aplica. Para administrarlos/apagarlos desde el UI. */
+export async function listShareLinks(workspaceId: string) {
+  const links = await db.shareLink.findMany({
+    where: { workspaceId },
+    orderBy: { createdAt: "desc" },
+  });
+  const now = Date.now();
+  const live = links.filter((l) => !l.expiresAt || l.expiresAt.getTime() > now);
+  const dealIds = live.map((l) => l.dealId).filter((id): id is string => !!id);
+  const deals = dealIds.length
+    ? await db.deal.findMany({
+        where: { id: { in: dealIds } },
+        select: { id: true, title: true },
+      })
+    : [];
+  const titleById = new Map(deals.map((d) => [d.id, d.title]));
+  return live.map((l) => ({
+    id: l.id,
+    token: l.token,
+    kind: l.kind,
+    dealTitle: l.dealId ? titleById.get(l.dealId) ?? "(eliminado)" : null,
+    expiresAt: l.expiresAt ? l.expiresAt.toISOString() : null,
+    createdAt: l.createdAt.toISOString(),
+  }));
+}
+
+/** Apaga (borra) un share link. Scopeado al workspace. */
+export async function revokeShareLink(workspaceId: string, id: string) {
+  await db.shareLink.deleteMany({ where: { id, workspaceId } });
+}
+
 /** Resuelve los datos read-only de un token. null si inválido/expirado. */
 export async function resolveShareData(token: string): Promise<ShareData | null> {
   const link = await db.shareLink.findUnique({ where: { token } });

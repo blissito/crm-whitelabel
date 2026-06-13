@@ -100,9 +100,12 @@ export async function action({ request }: Route.ActionArgs) {
         return Response.json({ ok: true });
       }
       case "create_share_link": {
+        // Dominio canónico para el link público (el agente pega a fly.dev, pero
+        // queremos el dominio bonito). PUBLIC_BASE_URL > forwarded host > url.host.
         const url = new URL(request.url);
         const proto = request.headers.get("x-forwarded-proto") || url.protocol.replace(":", "");
-        const origin = `${proto}://${url.host}`;
+        const host = request.headers.get("x-forwarded-host") || url.host;
+        const origin = (process.env.PUBLIC_BASE_URL || `${proto}://${host}`).replace(/\/$/, "");
         const kind = body.kind === "deal" ? "deal" : "pipeline";
         const token = await createShareLink(workspaceId, {
           kind,

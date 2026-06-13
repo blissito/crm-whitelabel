@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { HiXMark, HiOutlineEnvelope, HiOutlinePhone } from "react-icons/hi2";
 import { cn } from "~/lib/cn";
 import type { PipelineData, DealCard, PipelineColumn } from "server/crm.server";
 import type { ShareData } from "server/share.server";
@@ -21,10 +23,16 @@ const TAG_COLORS = [
   "bg-cyan/15 text-cyan",
 ];
 
-function ReadOnlyCard({ deal }: { deal: DealCard }) {
+function ReadOnlyCard({ deal, onOpen }: { deal: DealCard; onOpen?: () => void }) {
   const title = deal.title || deal.conversationName || "Sin título";
   return (
-    <div className="rounded-xl border border-outlines bg-white p-3 shadow-sm">
+    <div
+      onClick={onOpen}
+      className={cn(
+        "rounded-xl border border-outlines bg-white p-3 shadow-sm",
+        onOpen && "cursor-pointer transition hover:border-brand-300 hover:shadow-md"
+      )}
+    >
       <p className="truncate text-sm font-medium text-dark">{title}</p>
       {deal.customerName && (
         <p className="mt-0.5 truncate text-xs text-gray-400">{deal.customerName}</p>
@@ -53,7 +61,103 @@ function ReadOnlyCard({ deal }: { deal: DealCard }) {
   );
 }
 
-function ReadOnlyColumn({ stage }: { stage: PipelineColumn }) {
+function DealDetail({ deal, stageName }: { deal: DealCard; stageName?: string | null }) {
+  const title = deal.title || deal.conversationName || "Sin título";
+  return (
+    <div className="space-y-4">
+      <div>
+        {stageName && (
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-400">{stageName}</p>
+        )}
+        <h2 className="mt-1 text-lg font-semibold text-dark">{title}</h2>
+        {deal.value != null && (
+          <p className="mt-1 text-xl font-semibold text-brand-600">
+            {fmtCurrency(deal.value, deal.currency)}
+          </p>
+        )}
+      </div>
+
+      {(deal.customerName || deal.customerEmail || deal.customerPhone) && (
+        <div className="rounded-xl border border-outlines bg-surface/50 p-3">
+          {deal.customerName && (
+            <p className="text-sm font-medium text-dark">{deal.customerName}</p>
+          )}
+          {deal.customerPhone && (
+            <a href={`tel:${deal.customerPhone}`} className="mt-1.5 flex items-center gap-2 text-sm text-gray-600 hover:text-brand-600">
+              <HiOutlinePhone className="h-4 w-4 text-gray-400" />
+              {deal.customerPhone}
+            </a>
+          )}
+          {deal.customerEmail && (
+            <a href={`mailto:${deal.customerEmail}`} className="mt-1.5 flex items-center gap-2 text-sm text-gray-600 hover:text-brand-600">
+              <HiOutlineEnvelope className="h-4 w-4 text-gray-400" />
+              {deal.customerEmail}
+            </a>
+          )}
+        </div>
+      )}
+
+      {deal.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {deal.tags.map((tag, i) => (
+            <span
+              key={tag}
+              className={cn(
+                "rounded-full px-2.5 py-0.5 text-xs font-medium",
+                TAG_COLORS[i % TAG_COLORS.length]
+              )}
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {deal.source && (
+        <p className="text-xs text-gray-400">Origen: {deal.source}</p>
+      )}
+    </div>
+  );
+}
+
+function DetailModal({
+  deal,
+  stageName,
+  onClose,
+}: {
+  deal: DealCard;
+  stageName?: string | null;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 grid place-items-center bg-dark/40 p-4"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"
+      >
+        <button
+          onClick={onClose}
+          className="absolute right-4 top-4 rounded-lg p-1 text-gray-400 hover:bg-surface hover:text-dark"
+          aria-label="Cerrar"
+        >
+          <HiXMark className="h-5 w-5" />
+        </button>
+        <DealDetail deal={deal} stageName={stageName} />
+      </div>
+    </div>
+  );
+}
+
+function ReadOnlyColumn({
+  stage,
+  onOpenDeal,
+}: {
+  stage: PipelineColumn;
+  onOpenDeal: (deal: DealCard) => void;
+}) {
   return (
     <div className="flex w-60 flex-shrink-0 flex-col">
       <div className="mb-3 flex items-center justify-between px-1">
@@ -72,7 +176,7 @@ function ReadOnlyColumn({ stage }: { stage: PipelineColumn }) {
       </div>
       <div className="flex min-h-[120px] flex-1 flex-col gap-2 rounded-2xl border border-dashed border-outlines bg-surface/50 p-2">
         {stage.deals.map((d) => (
-          <ReadOnlyCard key={d.id} deal={d} />
+          <ReadOnlyCard key={d.id} deal={d} onOpen={() => onOpenDeal(d)} />
         ))}
         {stage.deals.length === 0 && (
           <div className="py-6 text-center text-xs text-gray-300">—</div>
@@ -108,6 +212,9 @@ export function SharedView({ token, initial }: { token: string; initial: ShareDa
     refetchIntervalInBackground: false,
   });
 
+  // Deal abierto en el modal de detalle (solo aplica al share de tablero).
+  const [open, setOpen] = useState<{ deal: DealCard; stageName: string | null } | null>(null);
+
   const logoUrl = data.branding?.logoUrl;
 
   if (data.kind === "deal") {
@@ -115,13 +222,10 @@ export function SharedView({ token, initial }: { token: string; initial: ShareDa
       <div className="min-h-screen bg-surface">
         <SharedHeader name={data.workspaceName} logoUrl={logoUrl} />
         <div className="mx-auto max-w-md p-6">
-          {data.stageName && (
-            <p className="mb-3 text-xs font-medium uppercase tracking-wide text-gray-400">
-              {data.stageName}
-            </p>
-          )}
           {data.deal ? (
-            <ReadOnlyCard deal={data.deal} />
+            <div className="rounded-2xl border border-outlines bg-white p-6 shadow-sm">
+              <DealDetail deal={data.deal} stageName={data.stageName} />
+            </div>
           ) : (
             <p className="rounded-xl border border-outlines bg-white p-6 text-center text-sm text-gray-400">
               Esta oportunidad ya no existe.
@@ -144,10 +248,17 @@ export function SharedView({ token, initial }: { token: string; initial: ShareDa
       <div className="flex-1 overflow-x-auto p-6">
         <div className="flex min-w-min gap-4">
           {pipeline.stages.map((s) => (
-            <ReadOnlyColumn key={s.id} stage={s} />
+            <ReadOnlyColumn
+              key={s.id}
+              stage={s}
+              onOpenDeal={(deal) => setOpen({ deal, stageName: s.name })}
+            />
           ))}
         </div>
       </div>
+      {open && (
+        <DetailModal deal={open.deal} stageName={open.stageName} onClose={() => setOpen(null)} />
+      )}
     </div>
   );
 }

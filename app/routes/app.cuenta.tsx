@@ -1,17 +1,21 @@
 import { useState } from "react";
-import { useFetcher } from "react-router";
+import { useFetcher, Form } from "react-router";
 import {
   HiKey,
   HiClipboard,
   HiCheck,
   HiArrowPath,
   HiArrowTopRightOnSquare,
+  HiOutlineLink,
+  HiTrash,
 } from "react-icons/hi2";
 import { SiNpm } from "react-icons/si";
 import type { Route } from "./+types/app.cuenta";
 import { requireWorkspace, generateApiKey, isAdmin } from "server/auth.server";
 import { logAction } from "server/audit.server";
+import { listShareLinks, revokeShareLink } from "server/share.server";
 import { db } from "~/lib/db.server";
+import { cn } from "~/lib/cn";
 
 export function meta() {
   return [{ title: "Mi cuenta · CRM CoreGrid" }];
@@ -31,21 +35,43 @@ export async function loader({ request }: Route.LoaderArgs) {
         select: { apiKey: true },
       })
     : null;
+  // Links públicos del tablero (admin) — para administrarlos/apagarlos.
+  const shareLinks = admin ? await listShareLinks(user.workspaceId) : [];
   // Host actual (habrá varios dominios). Honra forwarded headers (Fly → https).
   const url = new URL(request.url);
   const proto = request.headers.get("x-forwarded-proto") || url.protocol.replace(":", "");
   const host = request.headers.get("x-forwarded-host") || url.host;
+  const publicBase = (process.env.PUBLIC_BASE_URL || `${proto}://${host}`).replace(/\/$/, "");
   return {
     email: dbUser?.email ?? user.email,
     name: dbUser?.name ?? null,
     apiKey: dbUser?.apiKey ?? null,
     workspaceApiKey: ws?.apiKey ?? null,
     apiUrl: `${proto}://${host}`,
+    admin,
+    shareLinks,
+    publicBase,
   };
 }
 
 export async function action({ request }: Route.ActionArgs) {
   const { user } = await requireWorkspace(request);
+  const form = await request.formData();
+  const intent = String(form.get("intent") || "regen");
+
+  if (intent === "revoke_share") {
+    if (!isAdmin(user)) throw new Response("No autorizado", { status: 403 });
+    await revokeShareLink(user.workspaceId, String(form.get("id")));
+    await logAction({
+      workspaceId: user.workspaceId,
+      actor: { type: "user", email: user.email, id: user.id, via: "dashboard" },
+      action: "share.revoked",
+      targetType: "share",
+      targetLabel: String(form.get("id")),
+    });
+    return { ok: true };
+  }
+
   const dbUser = await db.user.findUnique({
     where: { id: user.id },
     select: { apiKey: true },
@@ -70,7 +96,8 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function Cuenta({ loaderData }: Route.ComponentProps) {
-  const { email, name, apiKey, workspaceApiKey, apiUrl } = loaderData;
+  const { email, name, apiKey, workspaceApiKey, apiUrl, admin, shareLinks, publicBase } =
+    loaderData;
   // Fetcher scopeado: el spinner gira SOLO durante esta acción, no en cada
   // navegación global.
   const fetcher = useFetcher();
@@ -127,6 +154,7 @@ export default function Cuenta({ loaderData }: Route.ComponentProps) {
         )}
 
         <fetcher.Form method="post" className="mt-4">
+          <input type="hidden" name="intent" value="regen" />
           <button
             type="submit"
             disabled={busy}
@@ -183,6 +211,78 @@ export default function Cuenta({ loaderData }: Route.ComponentProps) {
           </span>
         </a>
       </section>
+
+      {/* Links públicos (solo lectura) — administrar / apagar */}
+      {admin && (
+        <section className="mt-6 rounded-2xl border border-outlines bg-white p-6">
+          <div className="flex items-center gap-2">
+            <HiOutlineLink className="h-5 w-5 text-brand-500" />
+            <h2 className="text-lg font-semibold text-dark">Links públicos</h2>
+          </div>
+          <p className="mt-1 text-sm text-gray-500">
+            Links de solo lectura que tú o tu agente generaron. Apágalos cuando ya
+            no quieras que sigan abiertos.
+          </p>
+
+          {shareLinks.length === 0 ? (
+            <p className="mt-4 rounded-lg bg-surface px-4 py-3 text-sm text-gray-500">
+              No hay links activos.
+            </p>
+          ) : (
+            <ul className="mt-4 space-y-2">
+              {shareLinks.map((l) => {
+                const url = `${publicBase}/s/${l.token}`;
+                const label =
+                  l.kind === "deal" ? `Oportunidad · ${l.dealTitle ?? ""}` : "Tablero completo";
+                return (
+                  <li
+                    key={l.id}
+                    className="flex items-center gap-3 rounded-xl border border-outlines p-3"
+                  >
+                    <span
+                      className={cn(
+                        "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase",
+                        l.kind === "deal"
+                          ? "bg-accent/15 text-accent-600"
+                          : "bg-brand-100 text-brand-600"
+                      )}
+                    >
+                      {l.kind === "deal" ? "Lead" : "Tablero"}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-dark">{label}</p>
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="truncate block text-xs text-gray-400 hover:text-brand-500"
+                      >
+                        {url}
+                      </a>
+                    </div>
+                    {l.expiresAt && (
+                      <span className="hidden text-xs text-gray-400 sm:inline">
+                        vence {new Date(l.expiresAt).toLocaleDateString("es-MX")}
+                      </span>
+                    )}
+                    <Form method="post">
+                      <input type="hidden" name="intent" value="revoke_share" />
+                      <input type="hidden" name="id" value={l.id} />
+                      <button
+                        type="submit"
+                        title="Apagar link"
+                        className="rounded-lg p-2 text-gray-400 transition hover:bg-danger/10 hover:text-danger"
+                      >
+                        <HiTrash className="h-4 w-4" />
+                      </button>
+                    </Form>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      )}
     </div>
   );
 }
