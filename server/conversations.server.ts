@@ -42,6 +42,16 @@ export async function listConversations(
     hasMessages?: boolean;
   } = {}
 ): Promise<ConversationItem[]> {
+  // Limpiar pausas cuyo TTL haya expirado (coexistencia auto_echo de 30min).
+  await db.conversation.updateMany({
+    where: {
+      workspaceId,
+      manualMode: true,
+      pauseUntil: { not: null, lte: new Date() },
+    },
+    data: { manualMode: false, pauseUntil: null, pauseReason: null },
+  });
+
   const search = opts.search?.trim();
   const rows = await db.conversation.findMany({
     where: {
