@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { HiXMark, HiOutlineEnvelope, HiOutlinePhone } from "react-icons/hi2";
 import { cn } from "~/lib/cn";
+import { useEscapeKey } from "~/lib/useEscapeKey";
 import type {
   PipelineData,
   DealCard,
@@ -190,6 +191,7 @@ function DetailModal({
   token: string;
   onClose: () => void;
 }) {
+  useEscapeKey(onClose);
   return (
     <div
       onClick={onClose}

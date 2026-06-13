@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { HiExclamationTriangle } from "react-icons/hi2";
+import { useEscapeKey } from "~/lib/useEscapeKey";
 
 /** Modal de confirmación reutilizable para acciones destructivas. */
 export function ConfirmModal({
@@ -19,6 +20,7 @@ export function ConfirmModal({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  useEscapeKey(onCancel, open);
   return (
     <AnimatePresence>
       {open && (

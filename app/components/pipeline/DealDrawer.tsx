@@ -8,6 +8,7 @@ import {
   deleteDealNote,
 } from "~/lib/queries/pipeline";
 import { ShareButton } from "~/components/ShareButton";
+import { useEscapeKey } from "~/lib/useEscapeKey";
 
 export function DealDrawer({
   deal,
@@ -29,6 +30,8 @@ export function DealDrawer({
   const [customerPhone, setCustomerPhone] = useState(deal.customerPhone ?? "");
   const [customerEmail, setCustomerEmail] = useState(deal.customerEmail ?? "");
   const [tagsText, setTagsText] = useState(deal.tags.join(", "));
+
+  useEscapeKey(onClose);
 
   const save = () =>
     onSave({

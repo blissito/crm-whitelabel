@@ -10,6 +10,7 @@ import {
 } from "react-icons/hi2";
 import { cn } from "~/lib/cn";
 import { createShareLink } from "~/lib/queries/pipeline";
+import { useEscapeKey } from "~/lib/useEscapeKey";
 
 /** Botón "Compartir" que genera un link público read-only (tablero o lead) y
  *  muestra un modal con la URL para copiar/abrir. */
@@ -48,6 +49,8 @@ export function ShareButton({
     setUrl(null);
     setCopied(false);
   };
+
+  useEscapeKey(close, url !== null);
 
   return (
     <>

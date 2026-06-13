@@ -8,6 +8,7 @@ import {
 } from "@hello-pangea/dnd";
 import { HiXMark, HiTrash, HiPlus, HiBars3 } from "react-icons/hi2";
 import type { PipelineStage } from "~/lib/json";
+import { useEscapeKey } from "~/lib/useEscapeKey";
 
 const PALETTE = [
   "#1CA7E0", "#1689BC", "#F37021", "#F2C94C", "#7FBE60",
@@ -30,6 +31,8 @@ export function ColumnsEditor({
   const [stages, setStages] = useState<PipelineStage[]>(
     initial.map((s) => ({ ...s }))
   );
+
+  useEscapeKey(onClose);
 
   const update = (i: number, patch: Partial<PipelineStage>) =>
     setStages((prev) => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));

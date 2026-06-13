@@ -61,7 +61,7 @@ const fail = (e) => ({
 
 const server = new McpServer({
   name: "coregrid-crm",
-  version: "0.2.1",
+  version: "0.3.0",
 });
 
 server.tool(
@@ -96,7 +96,7 @@ server.tool(
 
 server.tool(
   "create_deal",
-  "Crea una nueva oportunidad (deal) en el pipeline. Si no se indica stageId, entra en la primera etapa.",
+  "Crea una nueva oportunidad (deal) en el pipeline. Si no se indica stageId, entra en la primera etapa. Puedes incluir notas iniciales con 'notes'.",
   {
     title: z.string().describe("Título de la oportunidad"),
     value: z.number().optional().describe("Valor en MXN"),
@@ -105,11 +105,19 @@ server.tool(
     customerPhone: z.string().optional(),
     customerEmail: z.string().optional(),
     tags: z.array(z.string()).optional(),
+    notes: z.array(z.string()).optional().describe("Notas iniciales a registrar en el deal"),
   },
-  async (args) => {
+  async ({ notes, ...deal }) => {
     try {
-      const r = await postCrm({ intent: "create_deal", deal: args });
-      return ok({ created: true, dealId: r.dealId });
+      const r = await postCrm({ intent: "create_deal", deal });
+      const dealId = r.dealId;
+      let notesAdded = 0;
+      for (const content of notes ?? []) {
+        if (!content?.trim()) continue;
+        await postCrm({ intent: "add_deal_note", dealId, content });
+        notesAdded++;
+      }
+      return ok({ created: true, dealId, notesAdded });
     } catch (e) {
       return fail(e);
     }
@@ -185,6 +193,39 @@ server.tool(
     try {
       const r = await postCrm({ intent: "create_share_link", kind, dealId, expiresHours });
       return ok({ url: r.url });
+    } catch (e) {
+      return fail(e);
+    }
+  }
+);
+
+server.tool(
+  "list_deal_notes",
+  "Lista las notas de una oportunidad (deal), de la más reciente a la más antigua. Útil para conocer el historial/contexto antes de actuar.",
+  {
+    dealId: z.string().describe("ID del deal"),
+  },
+  async ({ dealId }) => {
+    try {
+      const r = await postCrm({ intent: "list_deal_notes", dealId });
+      return ok({ dealId, notes: r.notes ?? [] });
+    } catch (e) {
+      return fail(e);
+    }
+  }
+);
+
+server.tool(
+  "add_deal_note",
+  "Agrega una nota (texto libre) a una oportunidad existente. Úsalo para registrar contexto, seguimientos o por qué se ganó/perdió.",
+  {
+    dealId: z.string().describe("ID del deal"),
+    content: z.string().describe("Texto de la nota"),
+  },
+  async ({ dealId, content }) => {
+    try {
+      const r = await postCrm({ intent: "add_deal_note", dealId, content });
+      return ok({ added: true, dealId, note: r.note });
     } catch (e) {
       return fail(e);
     }
