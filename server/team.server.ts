@@ -20,7 +20,25 @@ export async function listPendingInvites(workspaceId: string) {
     orderBy: { createdAt: "desc" },
   });
   const now = Date.now();
-  return invites.filter((i) => !i.expiresAt || i.expiresAt.getTime() > now);
+  const live = invites.filter((i) => !i.expiresAt || i.expiresAt.getTime() > now);
+
+  // Descarta invitaciones cuyo correo ya tiene cuenta: están muertas
+  // (acceptInvitation fallaría con "ya existe una cuenta") y sólo confunden.
+  const emails = live
+    .map((i) => i.email?.toLowerCase())
+    .filter((e): e is string => !!e);
+  const taken = emails.length
+    ? new Set(
+        (
+          await db.user.findMany({
+            where: { email: { in: emails } },
+            select: { email: true },
+          })
+        ).map((u) => u.email.toLowerCase())
+      )
+    : new Set<string>();
+
+  return live.filter((i) => !i.email || !taken.has(i.email.toLowerCase()));
 }
 
 export async function createInvitation(
