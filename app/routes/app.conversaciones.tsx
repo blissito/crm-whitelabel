@@ -1,11 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useFetcher } from "react-router";
 import { FaWhatsapp } from "react-icons/fa";
-import { HiCheckCircle, HiPause, HiPlay, HiHandRaised } from "react-icons/hi2";
+import { HiCheckCircle, HiPause, HiPlay, HiHandRaised, HiArrowDown } from "react-icons/hi2";
 import type { Route } from "./+types/app.conversaciones";
 import { requireWorkspace } from "server/auth.server";
 import { db } from "~/lib/db.server";
 import { listConversations, type ConversationItem } from "server/conversations.server";
+import { useMessages, type MessageItem } from "~/lib/queries/messages";
 import { cn } from "~/lib/cn";
 
 export function meta() {
@@ -35,20 +36,6 @@ const fmtTime = (iso: string) =>
   new Intl.DateTimeFormat("es-MX", { hour: "2-digit", minute: "2-digit" }).format(
     new Date(iso)
   );
-
-type MessageItem = {
-  id: string;
-  content: string;
-  role: string;
-  origin: string | null;
-  mediaType: string | null;
-  mediaMime: string | null;
-  mediaFilename: string | null;
-  mediaFileId: string | null;
-  isReaction: boolean;
-  reactionEmoji: string | null;
-  createdAt: string;
-};
 
 function Inbox({ conversations }: { conversations: ConversationItem[] }) {
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -168,29 +155,44 @@ function MessageMedia({ message: m, fromUs }: { message: MessageItem; fromUs: bo
 }
 
 function Thread({ conversation }: { conversation: ConversationItem }) {
-  const [messages, setMessages] = useState<MessageItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: messages = [], isPending } = useMessages(conversation.id);
+  const loading = isPending;
   const fetcher = useFetcher();
 
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-    fetch("/api/v1/crm", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ intent: "list_messages", conversationId: conversation.id }),
-    })
-      .then((r) => r.json())
-      .then((d) => {
-        if (active) {
-          setMessages(d.ok ? d.items : []);
-          setLoading(false);
-        }
-      });
-    return () => {
-      active = false;
-    };
+  // Scroll: contenedor + sentinela al final + botón "ir abajo".
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const [atBottom, setAtBottom] = useState(true);
+  const lastCountRef = useRef(0);
+
+  const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
+    bottomRef.current?.scrollIntoView({ behavior, block: "end" });
+  };
+
+  // Detecta si el usuario está pegado al fondo (margen de 80px).
+  const onScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
+    setAtBottom(dist < 80);
+  };
+
+  // Al cambiar de conversación, salta al fondo sin animación.
+  useLayoutEffect(() => {
+    lastCountRef.current = messages.length;
+    scrollToBottom("auto");
+    setAtBottom(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversation.id]);
+
+  // Mensajes nuevos: auto-scroll solo si el usuario ya estaba al fondo.
+  useEffect(() => {
+    if (messages.length > lastCountRef.current && atBottom) {
+      scrollToBottom("smooth");
+    }
+    lastCountRef.current = messages.length;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length]);
 
   const [draft, setDraft] = useState("");
   const replyFetcher = useFetcher();
@@ -254,34 +256,51 @@ function Thread({ conversation }: { conversation: ConversationItem }) {
         </div>
       </header>
 
-      <div className="flex-1 space-y-2 overflow-y-auto p-6">
-        {loading ? (
-          <p className="text-center text-xs text-gray-400">Cargando mensajes…</p>
-        ) : messages.length === 0 ? (
-          <p className="text-center text-xs text-gray-400">Sin mensajes.</p>
-        ) : (
-          messages.map((m) => {
-            const fromUs = m.role !== "USER";
-            return (
-              <div
-                key={m.id}
-                className={cn("flex", fromUs ? "justify-end" : "justify-start")}
-              >
+      <div className="relative min-h-0 flex-1">
+        <div
+          ref={scrollRef}
+          onScroll={onScroll}
+          className="h-full space-y-2 overflow-y-auto p-6"
+        >
+          {loading ? (
+            <p className="text-center text-xs text-gray-400">Cargando mensajes…</p>
+          ) : messages.length === 0 ? (
+            <p className="text-center text-xs text-gray-400">Sin mensajes.</p>
+          ) : (
+            messages.map((m) => {
+              const fromUs = m.role !== "USER";
+              return (
                 <div
-                  className={cn(
-                    "max-w-[75%] rounded-2xl px-3 py-2 text-sm",
-                    fromUs ? "bg-accent text-white" : "bg-white text-dark border border-outlines"
-                  )}
+                  key={m.id}
+                  className={cn("flex", fromUs ? "justify-end" : "justify-start")}
                 >
-                  <MessageMedia message={m} fromUs={fromUs} />
-                  {m.content && <p className="whitespace-pre-wrap">{m.content}</p>}
-                  <span className={cn("mt-0.5 block text-[10px]", fromUs ? "text-white/70" : "text-gray-400")}>
-                    {fmtTime(m.createdAt)}
-                  </span>
+                  <div
+                    className={cn(
+                      "max-w-[75%] rounded-2xl px-3 py-2 text-sm",
+                      fromUs ? "bg-accent text-white" : "bg-white text-dark border border-outlines"
+                    )}
+                  >
+                    <MessageMedia message={m} fromUs={fromUs} />
+                    {m.content && <p className="whitespace-pre-wrap">{m.content}</p>}
+                    <span className={cn("mt-0.5 block text-[10px]", fromUs ? "text-white/70" : "text-gray-400")}>
+                      {fmtTime(m.createdAt)}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            );
-          })
+              );
+            })
+          )}
+          <div ref={bottomRef} />
+        </div>
+
+        {!atBottom && (
+          <button
+            onClick={() => scrollToBottom("smooth")}
+            aria-label="Ir al último mensaje"
+            className="absolute bottom-4 right-4 inline-flex h-9 w-9 items-center justify-center rounded-full border border-outlines bg-white text-gray-600 shadow-md transition hover:bg-surface"
+          >
+            <HiArrowDown className="h-4 w-4" />
+          </button>
         )}
       </div>
 

@@ -1,49 +1,56 @@
-import { NavLink, Outlet, Link } from "react-router";
+import { Outlet } from "react-router";
 import type { Route } from "./+types/admin";
 import { requireSuperAdmin } from "server/auth.server";
-import { HiOutlineArrowLeft } from "react-icons/hi2";
+import { db } from "~/lib/db.server";
+import { parseBranding } from "~/lib/json";
+import { Sidebar, type NavItem } from "~/components/Sidebar";
+import {
+  HiOutlineRectangleStack,
+  HiOutlineUsers,
+  HiOutlineClock,
+  HiOutlineArrowLeft,
+} from "react-icons/hi2";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const user = await requireSuperAdmin(request);
-  return { email: user.email };
+  const workspace = await db.workspace.findUnique({
+    where: { id: user.workspaceId },
+    select: { name: true, branding: true },
+  });
+  return {
+    user: { email: user.email, name: user.name },
+    workspaceName: workspace?.name ?? "CRM",
+    branding: parseBranding(workspace?.branding),
+  };
 }
 
-const TABS = [
-  { to: "/admin", label: "Tableros", end: true },
-  { to: "/admin/usuarios", label: "Usuarios", end: false },
-  { to: "/admin/actividad", label: "Actividad", end: false },
+// Mismo layout/sidebar que el CRM: al pasar de /app a /admin la sidebar no se
+// va, solo mutan los items del menú principal. "Volver al CRM" vive en el menú
+// secundario en vez de un botón "Volver" suelto.
+const NAV: NavItem[] = [
+  { to: "/admin", label: "Tableros", Icon: HiOutlineRectangleStack, end: true },
+  { to: "/admin/usuarios", label: "Usuarios", Icon: HiOutlineUsers },
+  { to: "/admin/actividad", label: "Actividad", Icon: HiOutlineClock },
+];
+
+const SECONDARY: NavItem[] = [
+  { to: "/app", label: "Volver al CRM", Icon: HiOutlineArrowLeft },
 ];
 
 export default function AdminLayout({ loaderData }: Route.ComponentProps) {
+  const { user, workspaceName, branding } = loaderData;
+  const logo = branding?.logoUrl ?? "/brand/coregrid-logo.png";
+
   return (
-    <div className="min-h-screen bg-surface">
-      <header className="flex items-center gap-6 border-b border-outlines bg-dark px-6 py-3 text-white">
-        <span className="font-semibold">Panel de plataforma</span>
-        <nav className="flex gap-1">
-          {TABS.map((t) => (
-            <NavLink
-              key={t.to}
-              to={t.to}
-              end={t.end}
-              className={({ isActive }) =>
-                `rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-                  isActive ? "bg-white/15 text-white" : "text-white/60 hover:bg-white/10 hover:text-white"
-                }`
-              }
-            >
-              {t.label}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="ml-auto flex items-center gap-4 text-sm text-white/60">
-          <span className="hidden sm:inline">{loaderData.email}</span>
-          <Link to="/app" className="inline-flex items-center gap-1.5 hover:text-white">
-            <HiOutlineArrowLeft className="h-4 w-4" />
-            Volver
-          </Link>
-        </div>
-      </header>
-      <main className="p-6">
+    <div className="flex h-screen bg-surface">
+      <Sidebar
+        logo={logo}
+        workspaceName={workspaceName}
+        user={user}
+        nav={NAV}
+        secondary={SECONDARY}
+      />
+      <main className="min-w-0 flex-1 overflow-y-auto p-6">
         <Outlet />
       </main>
     </div>
