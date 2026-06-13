@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # ─── Build stage ─────────────────────────────────────────────────────────
 FROM node:22-slim AS build
 WORKDIR /app
@@ -9,10 +10,19 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-c
 # prisma/ debe existir antes de npm ci: el postinstall corre `prisma generate`.
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
-RUN npm ci
+# Cache de npm entre builds (acelera cuando cambia el lock). El layer de npm ci
+# se reusa intacto cuando package*.json no cambian.
+RUN --mount=type=cache,target=/root/.npm npm ci
 
 COPY . .
 RUN npm run build
+
+# ─── Prod deps ───────────────────────────────────────────────────────────
+# Poda devDeps (vite/typescript/react-router-dev/tailwind…) dejando solo lo de
+# runtime: deps + prisma (migrate deploy) + tsx (db seed). Imagen mucho más
+# chica → push/pull/boot más rápidos.
+FROM build AS prod-deps
+RUN npm prune --omit=dev
 
 # ─── Runtime stage ───────────────────────────────────────────────────────
 FROM node:22-slim AS runtime
@@ -23,8 +33,7 @@ ENV PORT=3000
 RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
-# node_modules incluye devDeps (tsx) para que `prisma db seed` corra en release.
-COPY --from=build /app/node_modules ./node_modules
+COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=build /app/build ./build
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/public ./public
