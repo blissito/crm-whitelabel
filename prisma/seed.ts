@@ -71,14 +71,17 @@ async function main() {
   });
   if (apiKey) console.log(`   API key configurada para MCP`);
 
-  const email = "admin@coregrid.com.mx";
-  const passwordHash = await bcrypt.hash("coregrid123", 12);
+  const email = process.env.SEED_ADMIN_EMAIL || "admin@coregrid.com.mx";
+  // Password del admin desde env (Fly secret en prod). Sin env: default local.
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD;
+  const passwordHash = await bcrypt.hash(adminPassword || "dev-local-change-me", 12);
   await db.user.upsert({
     where: { email },
-    update: {},
+    // Si hay env, rota el password en cada deploy (no se hardcodea en el repo).
+    update: adminPassword ? { passwordHash } : {},
     create: {
       email,
-      name: "Admin CoreGrid",
+      name: "Admin",
       passwordHash,
       role: "OWNER",
       workspaceId: workspace.id,
@@ -89,7 +92,7 @@ async function main() {
 
   console.log("✅ Seed completo");
   console.log(`   Workspace: ${workspace.name} (${workspace.id})`);
-  console.log(`   Login: ${email} / coregrid123`);
+  console.log(`   Admin: ${email}`);
 }
 
 // Oportunidades de ejemplo realistas para CoreGrid (soporte IT/Apple),

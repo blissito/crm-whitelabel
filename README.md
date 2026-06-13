@@ -3,9 +3,6 @@
 CRM white-label para distribuidores. Bandeja de WhatsApp + pipeline de ventas.
 Stack: React Router v7 + Tailwind + Prisma/SQLite, en Fly.io.
 
-**Producción:** https://crm-coregrid.fly.dev
-**Login demo:** `admin@coregrid.com.mx` / `coregrid123`
-
 ## Desarrollo
 
 ```bash
