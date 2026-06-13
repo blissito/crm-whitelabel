@@ -89,8 +89,7 @@ export default function Cuenta({ loaderData }: Route.ComponentProps) {
             </span>
           </div>
           <p className="mt-1 text-sm text-gray-500">
-            Llave a nivel tablero, la que ya está conectada a tu agente. Compártela
-            solo con tu equipo.
+            Llave a nivel tablero, la que ya está conectada a tu agente.
           </p>
           <CopyRow value={workspaceApiKey} className="mt-4" />
         </section>
