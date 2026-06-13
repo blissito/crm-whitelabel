@@ -1,3 +1,4 @@
+import { flushSync } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { PipelineData, DealCard } from "server/crm.server";
 import type { PipelineStage } from "~/lib/json";
@@ -65,9 +66,13 @@ export function usePipelineActions() {
 
   return {
     move(dealId: string, stageId: string, position: number) {
-      qc.setQueryData<PipelineData>(PIPELINE_KEY, (prev) =>
-        prev ? optimisticMove(prev, dealId, stageId, position) : prev
-      );
+      // flushSync: aplica el movimiento optimista SÍNCRONO antes de que la
+      // animación de drop de dnd corra → sin brinco al origen.
+      flushSync(() => {
+        qc.setQueryData<PipelineData>(PIPELINE_KEY, (prev) =>
+          prev ? optimisticMove(prev, dealId, stageId, position) : prev
+        );
+      });
       postCrm({ intent: "move_deal", dealId, stageId, position }).then(invalidate);
     },
     save(dealId: string, input: Partial<DealCard>) {
