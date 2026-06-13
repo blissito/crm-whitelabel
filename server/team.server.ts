@@ -45,6 +45,25 @@ export async function revokeInvitation(workspaceId: string, id: string) {
   await db.invitation.deleteMany({ where: { id, workspaceId } });
 }
 
+/** Cambia el rol de un miembro del tablero. Sólo entre ADMIN y MEMBER; nunca
+ *  toca al OWNER. Scopeado al workspace para que un admin no afecte otros. */
+export async function setMemberRole(
+  workspaceId: string,
+  userId: string,
+  role: "ADMIN" | "MEMBER"
+) {
+  if (role !== UserRole.ADMIN && role !== UserRole.MEMBER) {
+    throw new Error("Rol inválido");
+  }
+  const member = await db.user.findFirst({
+    where: { id: userId, workspaceId },
+    select: { id: true, role: true },
+  });
+  if (!member) throw new Error("Miembro no encontrado");
+  if (member.role === UserRole.OWNER) throw new Error("No se puede cambiar el rol del dueño");
+  await db.user.update({ where: { id: member.id }, data: { role } });
+}
+
 type InviteInfo = {
   workspaceId: string;
   workspaceName: string;

@@ -8,6 +8,7 @@ import {
   listPendingInvites,
   createInvitation,
   revokeInvitation,
+  setMemberRole,
 } from "server/team.server";
 import { sendInviteEmail } from "server/email.server";
 import { logAction } from "server/audit.server";
@@ -78,6 +79,19 @@ export async function action({ request }: Route.ActionArgs) {
   if (intent === "revoke") {
     await revokeInvitation(user.workspaceId, String(form.get("id")));
   }
+  if (intent === "set_role") {
+    const userId = String(form.get("userId"));
+    const role = String(form.get("role")) as "ADMIN" | "MEMBER";
+    await setMemberRole(user.workspaceId, userId, role);
+    await logAction({
+      workspaceId: user.workspaceId,
+      actor: { type: "user", email: user.email, id: user.id, via: "dashboard" },
+      action: "member.role_changed",
+      targetType: "member",
+      targetLabel: userId,
+      metadata: { role },
+    });
+  }
   return { ok: true };
 }
 
@@ -126,26 +140,40 @@ export default function Equipo({ loaderData }: Route.ComponentProps) {
       {/* Invitaciones pendientes */}
       {invites.length > 0 && (
         <section className="mt-6 rounded-2xl border border-outlines bg-white p-6">
-          <h2 className="mb-3 text-sm font-semibold text-gray-500">
+          <h2 className="text-sm font-semibold text-gray-500">
             Invitaciones pendientes
           </h2>
-          <ul className="space-y-2">
+          <p className="mt-1 text-xs text-gray-400">
+            Links generados que nadie ha aceptado todavía. Compártelos; al aceptar,
+            la persona entra al tablero. Cancélalos con la papelera.
+          </p>
+          <ul className="mt-3 space-y-3">
             {invites.map((inv) => (
-              <li key={inv.id} className="flex items-center gap-2">
-                <CopyField value={inv.url} />
-                {admin && (
-                  <Form method="post">
-                    <input type="hidden" name="intent" value="revoke" />
-                    <input type="hidden" name="id" value={inv.id} />
-                    <button
-                      type="submit"
-                      title="Revocar"
-                      className="rounded-lg p-2 text-gray-400 hover:bg-surface hover:text-danger"
-                    >
-                      <HiTrash className="h-4 w-4" />
-                    </button>
-                  </Form>
-                )}
+              <li key={inv.id} className="space-y-1.5">
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="font-medium text-dark">
+                    {inv.email ?? "Link sin correo"}
+                  </span>
+                  <span className="rounded-full bg-surface px-2 py-0.5 font-medium text-gray-500">
+                    {inv.role}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CopyField value={inv.url} />
+                  {admin && (
+                    <Form method="post">
+                      <input type="hidden" name="intent" value="revoke" />
+                      <input type="hidden" name="id" value={inv.id} />
+                      <button
+                        type="submit"
+                        title="Cancelar invitación"
+                        className="rounded-lg p-2 text-gray-400 hover:bg-surface hover:text-danger"
+                      >
+                        <HiTrash className="h-4 w-4" />
+                      </button>
+                    </Form>
+                  )}
+                </div>
               </li>
             ))}
           </ul>
@@ -158,20 +186,40 @@ export default function Equipo({ loaderData }: Route.ComponentProps) {
           Miembros ({members.length})
         </h2>
         <ul className="divide-y divide-outlines">
-          {members.map((m) => (
-            <li key={m.id} className="flex items-center justify-between py-3">
-              <div>
-                <p className="text-sm font-medium text-dark">
-                  {m.name ?? m.email}
-                  {m.id === me.id && <span className="ml-2 text-xs text-gray-400">(tú)</span>}
-                </p>
-                <p className="text-xs text-gray-400">{m.email}</p>
-              </div>
-              <span className="rounded-full bg-surface px-2.5 py-1 text-xs font-medium text-gray-500">
-                {m.role}
-              </span>
-            </li>
-          ))}
+          {members.map((m) => {
+            const canEdit = admin && m.id !== me.id && m.role !== "OWNER";
+            const nextRole = m.role === "ADMIN" ? "MEMBER" : "ADMIN";
+            return (
+              <li key={m.id} className="flex items-center justify-between py-3">
+                <div>
+                  <p className="text-sm font-medium text-dark">
+                    {m.name ?? m.email}
+                    {m.id === me.id && <span className="ml-2 text-xs text-gray-400">(tú)</span>}
+                  </p>
+                  <p className="text-xs text-gray-400">{m.email}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-surface px-2.5 py-1 text-xs font-medium text-gray-500">
+                    {m.role}
+                  </span>
+                  {canEdit && (
+                    <Form method="post">
+                      <input type="hidden" name="intent" value="set_role" />
+                      <input type="hidden" name="userId" value={m.id} />
+                      <input type="hidden" name="role" value={nextRole} />
+                      <button
+                        type="submit"
+                        disabled={busy}
+                        className="rounded-lg border border-outlines px-2.5 py-1 text-xs font-medium text-gray-600 transition hover:bg-surface disabled:opacity-60"
+                      >
+                        {nextRole === "ADMIN" ? "Hacer admin" : "Quitar admin"}
+                      </button>
+                    </Form>
+                  )}
+                </div>
+              </li>
+            );
+          })}
         </ul>
       </section>
     </div>
