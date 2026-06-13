@@ -1,6 +1,6 @@
 import { Form, useNavigation, redirect } from "react-router";
 import type { Route } from "./+types/app.ajustes";
-import { requireWorkspace, requireAdmin, logout } from "server/auth.server";
+import { requireAdmin, logout } from "server/auth.server";
 import { db } from "~/lib/db.server";
 import { parseBranding, serialize } from "~/lib/json";
 import { logAction } from "server/audit.server";
