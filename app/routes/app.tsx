@@ -13,6 +13,7 @@ import {
   HiOutlineArrowRightOnRectangle,
   HiOutlineKey,
   HiOutlineUserGroup,
+  HiOutlinePuzzlePiece,
   HiChevronDoubleLeft,
   HiChevronDoubleRight,
 } from "react-icons/hi2";
@@ -38,6 +39,7 @@ const NAV = [
 ];
 
 const SECONDARY = [
+  { to: "/app/integraciones", label: "Integraciones", Icon: HiOutlinePuzzlePiece },
   { to: "/app/equipo", label: "Equipo", Icon: HiOutlineUserGroup },
   { to: "/app/cuenta", label: "Mi cuenta", Icon: HiOutlineKey },
 ];
@@ -154,8 +156,9 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
         </div>
       </aside>
 
-      {/* Main — min-w-0 permite scroll horizontal del board (trampa flexbox). */}
-      <main className="min-w-0 flex-1 overflow-hidden">
+      {/* Main — min-w-0 permite el scroll horizontal del board (trampa flexbox);
+          overflow-y-auto deja scrollear páginas altas (cuenta, equipo). */}
+      <main className="min-w-0 flex-1 overflow-y-auto">
         <Outlet />
       </main>
     </div>

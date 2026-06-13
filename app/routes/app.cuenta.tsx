@@ -30,13 +30,16 @@ export async function loader({ request }: Route.LoaderArgs) {
         select: { apiKey: true },
       })
     : null;
-  const origin = new URL(request.url).origin;
+  // Host actual (habrá varios dominios). Honra forwarded headers (Fly → https).
+  const url = new URL(request.url);
+  const proto = request.headers.get("x-forwarded-proto") || url.protocol.replace(":", "");
+  const host = request.headers.get("x-forwarded-host") || url.host;
   return {
     email: dbUser?.email ?? user.email,
     name: dbUser?.name ?? null,
     apiKey: dbUser?.apiKey ?? null,
     workspaceApiKey: ws?.apiKey ?? null,
-    apiUrl: origin,
+    apiUrl: `${proto}://${host}`,
   };
 }
 
@@ -53,16 +56,17 @@ export default function Cuenta({ loaderData }: Route.ComponentProps) {
   const busy = nav.state !== "idle";
 
   const effectiveKey = apiKey ?? workspaceApiKey;
+  const keyForCfg = effectiveKey ?? "TU_LLAVE";
+  // Comando directo (Claude Code / agentes CLI) — lo más simple de pegar.
+  const mcpCommand = `claude mcp add coregrid-crm -e CRM_API_KEY=${keyForCfg} -e CRM_API_URL=${apiUrl} -- npx -y coregrid-crm-mcp`;
+  // Config manual (clientes de escritorio) — usa el host actual (varios dominios).
   const mcpConfig = JSON.stringify(
     {
       mcpServers: {
         "coregrid-crm": {
           command: "npx",
           args: ["-y", "coregrid-crm-mcp"],
-          env: {
-            CRM_API_KEY: effectiveKey ?? "TU_LLAVE",
-            ...(apiUrl !== "https://crm-coregrid.fly.dev" ? { CRM_API_URL: apiUrl } : {}),
-          },
+          env: { CRM_API_KEY: keyForCfg, CRM_API_URL: apiUrl },
         },
       },
     },
@@ -78,35 +82,23 @@ export default function Cuenta({ loaderData }: Route.ComponentProps) {
         {email}
       </p>
 
-      {/* Llave del tablero (default que ya usan los agentes) — OWNER/ADMIN */}
-      {workspaceApiKey && (
-        <section className="mt-8 rounded-2xl border border-brand-300 bg-brand-100/30 p-6">
-          <div className="flex items-center gap-2">
-            <HiKey className="h-5 w-5 text-brand-600" />
-            <h2 className="text-lg font-semibold text-dark">Llave del tablero</h2>
+      {/* Una sola llave (efectiva: personal o la del tablero en uso) */}
+      <section className="mt-8 rounded-2xl border border-outlines bg-white p-6">
+        <div className="flex items-center gap-2">
+          <HiKey className="h-5 w-5 text-brand-500" />
+          <h2 className="text-lg font-semibold text-dark">Tu llave de API</h2>
+          {effectiveKey === workspaceApiKey && workspaceApiKey && (
             <span className="rounded-full bg-brand-500 px-2 py-0.5 text-[10px] font-semibold text-white">
               EN USO
             </span>
-          </div>
-          <p className="mt-1 text-sm text-gray-500">
-            Llave a nivel tablero, la que ya está conectada a tu agente.
-          </p>
-          <CopyRow value={workspaceApiKey} className="mt-4" />
-        </section>
-      )}
-
-      <section className="mt-6 rounded-2xl border border-outlines bg-white p-6">
-        <div className="flex items-center gap-2">
-          <HiKey className="h-5 w-5 text-brand-500" />
-          <h2 className="text-lg font-semibold text-dark">Tu llave personal</h2>
+          )}
         </div>
         <p className="mt-1 text-sm text-gray-500">
-          Conéctala a tu agente para que opere tu tablero. La llave es personal y
-          ve solo tu tablero.
+          Conéctala a tu agente para que opere tu tablero.
         </p>
 
-        {apiKey ? (
-          <CopyRow value={apiKey} className="mt-4" />
+        {effectiveKey ? (
+          <CopyRow value={effectiveKey} className="mt-4" />
         ) : (
           <p className="mt-4 rounded-lg bg-surface px-4 py-3 text-sm text-gray-500">
             Aún no tienes llave. Genera una para conectar tu agente.
@@ -117,27 +109,31 @@ export default function Cuenta({ loaderData }: Route.ComponentProps) {
           <button
             type="submit"
             disabled={busy}
-            className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-600 disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-lg border border-outlines px-4 py-2 text-sm font-semibold text-gray-600 transition hover:bg-surface disabled:opacity-60"
           >
             <HiArrowPath className={busy ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
-            {apiKey ? "Regenerar llave" : "Generar llave"}
+            {apiKey ? "Regenerar llave" : "Generar llave personal"}
           </button>
-          {apiKey && (
-            <span className="ml-3 text-xs text-gray-400">
-              Regenerar invalida la llave anterior.
-            </span>
-          )}
+          <span className="ml-3 text-xs text-gray-400">
+            Genera una llave personal nueva para tu agente.
+          </span>
         </Form>
       </section>
 
       <section className="mt-6 rounded-2xl border border-outlines bg-white p-6">
-        <h2 className="text-lg font-semibold text-dark">Conecta tu agente (MCP)</h2>
+        <h2 className="text-lg font-semibold text-dark">Conecta tu agente</h2>
         <p className="mt-1 text-sm text-gray-500">
-          {apiKey
-            ? "Pega esto en la config MCP de tu agente."
-            : "Genera tu llave arriba y úsala en la config MCP de tu agente."}
+          Pega esto en el chat de tu agente (Ghosty) para conectar el CRM.
         </p>
         <CopyBlock value={mcpConfig} className="mt-4" />
+
+        {/* Comando CLI en segundo plano (clientes tipo Claude Code) */}
+        <details className="mt-3 text-sm">
+          <summary className="cursor-pointer text-gray-500 hover:text-gray-700">
+            ¿Usas un cliente CLI? Comando directo
+          </summary>
+          <CopyBlock value={mcpCommand} className="mt-2" />
+        </details>
 
         {/* Cuadrito descriptivo del paquete + link a npm */}
         <a
