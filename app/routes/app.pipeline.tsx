@@ -27,6 +27,7 @@ export default function Pipeline({ loaderData }: Route.ComponentProps) {
       onSaveDeal={actions.save}
       onDeleteDeal={actions.remove}
       onCreateDeal={actions.create}
+      onSavePipeline={actions.savePipeline}
     />
   );
 }

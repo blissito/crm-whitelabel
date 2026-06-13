@@ -35,8 +35,11 @@ function useDragScroll() {
   return { ref, onMouseDown, onMouseMove, onMouseUp: stop, onMouseLeave: stop };
 }
 import { cn } from "~/lib/cn";
+import { HiOutlineAdjustmentsHorizontal } from "react-icons/hi2";
 import type { PipelineColumn, DealCard, PipelineData } from "server/crm.server";
+import type { PipelineStage } from "~/lib/json";
 import { DealDrawer } from "./DealDrawer";
+import { ColumnsEditor } from "./ColumnsEditor";
 
 const fmtCurrency = (value: number | null, currency = "MXN") =>
   value == null
@@ -120,7 +123,7 @@ function Column({
   onCardClick: (d: DealCard) => void;
 }) {
   return (
-    <div className="flex w-72 flex-shrink-0 flex-col">
+    <div className="flex w-60 flex-shrink-0 flex-col">
       <div className="mb-3 flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
           <span
@@ -183,15 +186,27 @@ export function PipelineBoard({
   onSaveDeal,
   onDeleteDeal,
   onCreateDeal,
+  onSavePipeline,
 }: {
   data: PipelineData;
   onMove: (dealId: string, stageId: string, position: number) => void;
   onSaveDeal: (dealId: string, input: Partial<DealCard>) => void;
   onDeleteDeal: (dealId: string) => void;
   onCreateDeal: () => void;
+  onSavePipeline: (stages: PipelineStage[]) => void;
 }) {
   const [selected, setSelected] = useState<DealCard | null>(null);
+  const [editColumns, setEditColumns] = useState(false);
   const pan = useDragScroll();
+
+  // Etapas sin los deals (para el editor).
+  const stageDefs: PipelineStage[] = data.stages.map((s) => ({
+    id: s.id,
+    name: s.name,
+    color: s.color,
+    order: s.order,
+    ...(s.isClosed ? { isClosed: true, closedType: s.closedType } : {}),
+  }));
 
   const handleDragEnd = (result: DropResult) => {
     const { source, destination, draggableId } = result;
@@ -217,12 +232,22 @@ export function PipelineBoard({
             value={`${Math.round(data.stats.conversionRate * 100)}%`}
           />
         </div>
-        <button
-          onClick={onCreateDeal}
-          className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-600"
-        >
-          + Nueva oportunidad
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setEditColumns(true)}
+            title="Editar etapas"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-outlines px-3 py-2 text-sm font-medium text-gray-600 transition hover:bg-surface"
+          >
+            <HiOutlineAdjustmentsHorizontal className="h-4 w-4" />
+            Etapas
+          </button>
+          <button
+            onClick={onCreateDeal}
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-600"
+          >
+            + Nueva oportunidad
+          </button>
+        </div>
       </div>
 
       {/* Board: grab & pan horizontal (arrastrar el fondo), barra oculta */}
@@ -242,6 +267,17 @@ export function PipelineBoard({
           </div>
         </DragDropContext>
       </div>
+
+      {editColumns && (
+        <ColumnsEditor
+          stages={stageDefs}
+          onClose={() => setEditColumns(false)}
+          onSave={(stages) => {
+            onSavePipeline(stages);
+            setEditColumns(false);
+          }}
+        />
+      )}
 
       <AnimatePresence>
         {selected && (

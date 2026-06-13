@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { PipelineData, DealCard } from "server/crm.server";
+import type { PipelineStage } from "~/lib/json";
 
 // Real-time del tablero copiando el patrón de Formmy (TanStack Query +
 // refetchInterval). Poll corto (4s) para que el tablero se vea "moverse solo"
@@ -79,6 +80,9 @@ export function usePipelineActions() {
       postCrm({ intent: "create_deal", deal: { title: "Nueva oportunidad" } }).then(
         invalidate
       );
+    },
+    savePipeline(stages: PipelineStage[]) {
+      postCrm({ intent: "save_pipeline", stages }).then(invalidate);
     },
   };
 }

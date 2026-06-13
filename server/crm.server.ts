@@ -6,6 +6,43 @@ import {
   type PipelineStage,
 } from "~/lib/json";
 
+/** Reemplaza las etapas del pipeline (add/rename/delete/reorder). Normaliza el
+ *  orden y reasigna deals huérfanos (de etapas borradas) a la primera etapa. */
+export async function savePipeline(
+  workspaceId: string,
+  stages: PipelineStage[]
+): Promise<void> {
+  const normalized = stages
+    .filter((s) => s && s.id && s.name)
+    .map((s, i) => ({
+      id: s.id,
+      name: s.name,
+      color: s.color || "#1CA7E0",
+      order: i,
+      ...(s.isClosed ? { isClosed: true, closedType: s.closedType } : {}),
+    }));
+  if (normalized.length === 0) throw new Error("El pipeline necesita al menos una etapa");
+
+  await db.workspace.update({
+    where: { id: workspaceId },
+    data: { pipeline: serialize(normalized) },
+  });
+
+  // Deals en etapas que ya no existen → a la primera etapa.
+  const ids = normalized.map((s) => s.id);
+  const firstId = normalized[0].id;
+  const orphans = await db.deal.findMany({
+    where: { workspaceId, stageId: { notIn: ids } },
+    select: { id: true },
+  });
+  if (orphans.length > 0) {
+    await db.deal.updateMany({
+      where: { id: { in: orphans.map((o) => o.id) } },
+      data: { stageId: firstId },
+    });
+  }
+}
+
 // ─── Shapes que consume la UI (planos, ya hidratados) ────────────────────
 export type DealCard = {
   id: string;

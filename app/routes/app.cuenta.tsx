@@ -9,7 +9,7 @@ import {
 } from "react-icons/hi2";
 import { SiNpm } from "react-icons/si";
 import type { Route } from "./+types/app.cuenta";
-import { requireWorkspace, generateApiKey } from "server/auth.server";
+import { requireWorkspace, generateApiKey, isAdmin } from "server/auth.server";
 import { db } from "~/lib/db.server";
 
 export function meta() {
@@ -18,15 +18,24 @@ export function meta() {
 
 export async function loader({ request }: Route.LoaderArgs) {
   const { user } = await requireWorkspace(request);
+  const admin = isAdmin(user);
   const dbUser = await db.user.findUnique({
     where: { id: user.id },
     select: { apiKey: true, email: true, name: true },
   });
+  // La llave del tablero (default que usan los agentes) solo a OWNER/ADMIN.
+  const ws = admin
+    ? await db.workspace.findUnique({
+        where: { id: user.workspaceId },
+        select: { apiKey: true },
+      })
+    : null;
   const origin = new URL(request.url).origin;
   return {
     email: dbUser?.email ?? user.email,
     name: dbUser?.name ?? null,
     apiKey: dbUser?.apiKey ?? null,
+    workspaceApiKey: ws?.apiKey ?? null,
     apiUrl: origin,
   };
 }
@@ -39,10 +48,11 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function Cuenta({ loaderData }: Route.ComponentProps) {
-  const { email, name, apiKey, apiUrl } = loaderData;
+  const { email, name, apiKey, workspaceApiKey, apiUrl } = loaderData;
   const nav = useNavigation();
   const busy = nav.state !== "idle";
 
+  const effectiveKey = apiKey ?? workspaceApiKey;
   const mcpConfig = JSON.stringify(
     {
       mcpServers: {
@@ -50,7 +60,7 @@ export default function Cuenta({ loaderData }: Route.ComponentProps) {
           command: "npx",
           args: ["-y", "coregrid-crm-mcp"],
           env: {
-            CRM_API_KEY: apiKey ?? "TU_LLAVE",
+            CRM_API_KEY: effectiveKey ?? "TU_LLAVE",
             ...(apiUrl !== "https://crm-coregrid.fly.dev" ? { CRM_API_URL: apiUrl } : {}),
           },
         },
@@ -68,10 +78,28 @@ export default function Cuenta({ loaderData }: Route.ComponentProps) {
         {email}
       </p>
 
-      <section className="mt-8 rounded-2xl border border-outlines bg-white p-6">
+      {/* Llave del tablero (default que ya usan los agentes) — OWNER/ADMIN */}
+      {workspaceApiKey && (
+        <section className="mt-8 rounded-2xl border border-brand-300 bg-brand-100/30 p-6">
+          <div className="flex items-center gap-2">
+            <HiKey className="h-5 w-5 text-brand-600" />
+            <h2 className="text-lg font-semibold text-dark">Llave del tablero</h2>
+            <span className="rounded-full bg-brand-500 px-2 py-0.5 text-[10px] font-semibold text-white">
+              EN USO
+            </span>
+          </div>
+          <p className="mt-1 text-sm text-gray-500">
+            Llave a nivel tablero, la que ya está conectada a tu agente. Compártela
+            solo con tu equipo.
+          </p>
+          <CopyRow value={workspaceApiKey} className="mt-4" />
+        </section>
+      )}
+
+      <section className="mt-6 rounded-2xl border border-outlines bg-white p-6">
         <div className="flex items-center gap-2">
           <HiKey className="h-5 w-5 text-brand-500" />
-          <h2 className="text-lg font-semibold text-dark">Tu llave de API</h2>
+          <h2 className="text-lg font-semibold text-dark">Tu llave personal</h2>
         </div>
         <p className="mt-1 text-sm text-gray-500">
           Conéctala a tu agente para que opere tu tablero. La llave es personal y
@@ -103,40 +131,40 @@ export default function Cuenta({ loaderData }: Route.ComponentProps) {
         </Form>
       </section>
 
-      {apiKey && (
-        <section className="mt-6 rounded-2xl border border-outlines bg-white p-6">
-          <h2 className="text-lg font-semibold text-dark">Conecta tu agente (MCP)</h2>
-          <p className="mt-1 text-sm text-gray-500">
-            Pega esto en la config MCP de tu agente.
-          </p>
-          <CopyBlock value={mcpConfig} className="mt-4" />
+      <section className="mt-6 rounded-2xl border border-outlines bg-white p-6">
+        <h2 className="text-lg font-semibold text-dark">Conecta tu agente (MCP)</h2>
+        <p className="mt-1 text-sm text-gray-500">
+          {apiKey
+            ? "Pega esto en la config MCP de tu agente."
+            : "Genera tu llave arriba y úsala en la config MCP de tu agente."}
+        </p>
+        <CopyBlock value={mcpConfig} className="mt-4" />
 
-          {/* Cuadrito descriptivo del paquete + link a npm */}
-          <a
-            href="https://www.npmjs.com/package/coregrid-crm-mcp"
-            target="_blank"
-            rel="noreferrer"
-            className="mt-4 flex items-start gap-3 rounded-xl border border-outlines bg-surface/60 p-4 transition hover:border-brand-300"
-          >
-            <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[#CB3837]/10">
-              <SiNpm className="h-6 w-6 text-[#CB3837]" />
+        {/* Cuadrito descriptivo del paquete + link a npm */}
+        <a
+          href="https://www.npmjs.com/package/coregrid-crm-mcp"
+          target="_blank"
+          rel="noreferrer"
+          className="mt-4 flex items-start gap-3 rounded-xl border border-outlines bg-surface/60 p-4 transition hover:border-brand-300"
+        >
+          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-[#CB3837]/10">
+            <SiNpm className="h-6 w-6 text-[#CB3837]" />
+          </span>
+          <span className="min-w-0">
+            <span className="flex items-center gap-1.5 font-mono text-sm font-semibold text-dark">
+              coregrid-crm-mcp
+              <HiArrowTopRightOnSquare className="h-3.5 w-3.5 text-gray-400" />
             </span>
-            <span className="min-w-0">
-              <span className="flex items-center gap-1.5 font-mono text-sm font-semibold text-dark">
-                coregrid-crm-mcp
-                <HiArrowTopRightOnSquare className="h-3.5 w-3.5 text-gray-400" />
-              </span>
-              <span className="mt-0.5 block text-xs text-gray-500">
-                Servidor MCP con tools del pipeline (ver/crear/mover/compartir
-                oportunidades). Tu agente lo opera con tu llave. Publicado en npm.
-              </span>
-              <code className="mt-2 inline-block rounded bg-dark px-2 py-1 font-mono text-[11px] text-white/90">
-                npx -y coregrid-crm-mcp
-              </code>
+            <span className="mt-0.5 block text-xs text-gray-500">
+              Servidor MCP con tools del pipeline (ver/crear/mover/compartir
+              oportunidades). Tu agente lo opera con tu llave. Publicado en npm.
             </span>
-          </a>
-        </section>
-      )}
+            <code className="mt-2 inline-block rounded bg-dark px-2 py-1 font-mono text-[11px] text-white/90">
+              npx -y coregrid-crm-mcp
+            </code>
+          </span>
+        </a>
+      </section>
     </div>
   );
 }

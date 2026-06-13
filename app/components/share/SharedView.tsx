@@ -55,7 +55,7 @@ function ReadOnlyCard({ deal }: { deal: DealCard }) {
 
 function ReadOnlyColumn({ stage }: { stage: PipelineColumn }) {
   return (
-    <div className="flex w-72 flex-shrink-0 flex-col">
+    <div className="flex w-60 flex-shrink-0 flex-col">
       <div className="mb-3 flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
           <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: stage.color }} />

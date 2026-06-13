@@ -6,6 +6,7 @@ import {
   updateDeal,
   moveDeal,
   deleteDeal,
+  savePipeline,
   type DealInput,
 } from "server/crm.server";
 import { createShareLink } from "server/share.server";
@@ -40,6 +41,10 @@ export async function action({ request }: Route.ActionArgs) {
       }
       case "delete_deal": {
         await deleteDeal(workspaceId, body.dealId);
+        return Response.json({ ok: true });
+      }
+      case "save_pipeline": {
+        await savePipeline(workspaceId, body.stages);
         return Response.json({ ok: true });
       }
       case "create_share_link": {
