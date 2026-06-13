@@ -24,6 +24,7 @@ export default [
     "api/v1/share/:token/notes/:dealId",
     "routes/api.v1.share.$token.notes.$dealId.ts"
   ),
+  route("api/v1/webhook/formmy", "routes/api.v1.webhook.formmy.ts"),
 
   layout("routes/app.tsx", [
     route("app", "routes/app._index.tsx"),

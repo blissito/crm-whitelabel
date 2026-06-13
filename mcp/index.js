@@ -61,7 +61,7 @@ const fail = (e) => ({
 
 const server = new McpServer({
   name: "coregrid-crm",
-  version: "0.3.0",
+  version: "0.4.0",
 });
 
 server.tool(
@@ -226,6 +226,189 @@ server.tool(
     try {
       const r = await postCrm({ intent: "add_deal_note", dealId, content });
       return ok({ added: true, dealId, note: r.note });
+    } catch (e) {
+      return fail(e);
+    }
+  }
+);
+
+// ─── Contactos ─────────────────────────────────────────────────────────────
+server.tool(
+  "list_contacts",
+  "Lista los contactos/leads capturados del workspace. Filtra con 'search' por nombre/teléfono/email.",
+  {
+    search: z.string().optional(),
+    limit: z.number().optional(),
+  },
+  async ({ search, limit }) => {
+    try {
+      const r = await postCrm({ intent: "list_contacts", search, limit });
+      return ok({ contacts: r.items ?? [] });
+    } catch (e) {
+      return fail(e);
+    }
+  }
+);
+
+server.tool(
+  "create_contact",
+  "Crea (o actualiza si ya existe el mismo teléfono) un contacto. Idempotente por teléfono dentro del workspace.",
+  {
+    name: z.string().optional(),
+    phone: z.string().optional(),
+    email: z.string().optional(),
+  },
+  async (contact) => {
+    try {
+      const r = await postCrm({ intent: "create_contact", contact });
+      return ok({ created: true, contact: r.contact });
+    } catch (e) {
+      return fail(e);
+    }
+  }
+);
+
+server.tool(
+  "update_contact",
+  "Actualiza campos de un contacto existente (nombre, teléfono, email).",
+  {
+    contactId: z.string().describe("ID del contacto"),
+    name: z.string().optional(),
+    phone: z.string().optional(),
+    email: z.string().optional(),
+  },
+  async ({ contactId, ...contact }) => {
+    try {
+      const r = await postCrm({ intent: "update_contact", contactId, contact });
+      return ok({ updated: true, contact: r.contact });
+    } catch (e) {
+      return fail(e);
+    }
+  }
+);
+
+// ─── Conversaciones / coexistencia ──────────────────────────────────────────
+server.tool(
+  "list_conversations",
+  "Lista conversaciones de WhatsApp del workspace (id, nombre, teléfono, estado, último mensaje). Usa 'search' por teléfono para encontrar la conversación del número con el que hablas y obtener su conversationId (necesario para escalar).",
+  {
+    search: z.string().optional().describe("Filtra por teléfono/nombre/sessionId"),
+    status: z.string().optional(),
+    limit: z.number().optional(),
+  },
+  async ({ search, status, limit }) => {
+    try {
+      const r = await postCrm({ intent: "list_conversations", search, status, limit });
+      return ok({ conversations: r.items ?? [] });
+    } catch (e) {
+      return fail(e);
+    }
+  }
+);
+
+server.tool(
+  "pause_bot",
+  "Pausa el bot en una conversación (coexistencia): el humano toma el control temporalmente.",
+  { conversationId: z.string() },
+  async ({ conversationId }) => {
+    try {
+      const r = await postCrm({ intent: "pause_bot", conversationId });
+      return ok({ paused: true, conversation: r.conversation });
+    } catch (e) {
+      return fail(e);
+    }
+  }
+);
+
+server.tool(
+  "resume_bot",
+  "Reanuda el bot en una conversación (quita pausa/modo manual).",
+  { conversationId: z.string() },
+  async ({ conversationId }) => {
+    try {
+      const r = await postCrm({ intent: "resume_bot", conversationId });
+      return ok({ resumed: true, conversation: r.conversation });
+    } catch (e) {
+      return fail(e);
+    }
+  }
+);
+
+server.tool(
+  "takeover_conversation",
+  "Toma el control manual de una conversación (handoff a humano, sin tiempo de reanudación automático).",
+  { conversationId: z.string() },
+  async ({ conversationId }) => {
+    try {
+      const r = await postCrm({ intent: "takeover_conversation", conversationId });
+      return ok({ takenOver: true, conversation: r.conversation });
+    } catch (e) {
+      return fail(e);
+    }
+  }
+);
+
+// ─── Escalamiento ────────────────────────────────────────────────────────────
+server.tool(
+  "list_escalations",
+  "Lista los escalamientos (handoff a humano) del workspace. Filtra por status (PENDING|ASSIGNED|RESOLVED).",
+  { status: z.enum(["PENDING", "ASSIGNED", "RESOLVED"]).optional() },
+  async ({ status }) => {
+    try {
+      const r = await postCrm({ intent: "list_escalations", status });
+      return ok({ escalations: r.items ?? [] });
+    } catch (e) {
+      return fail(e);
+    }
+  }
+);
+
+server.tool(
+  "create_escalation",
+  "Crea un escalamiento (handoff a un agente humano) sobre una conversación existente. Usa list_conversations para obtener el conversationId.",
+  {
+    conversationId: z.string().describe("ID de la conversación a escalar"),
+    reason: z.string().describe("Motivo del escalamiento"),
+    summary: z.string().optional(),
+    priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]).optional(),
+    channel: z.string().optional(),
+    assignedTo: z.string().optional().describe("Email del agente asignado"),
+  },
+  async (escalation) => {
+    try {
+      const r = await postCrm({ intent: "create_escalation", escalation });
+      return ok({ created: true, escalation: r.escalation });
+    } catch (e) {
+      return fail(e);
+    }
+  }
+);
+
+server.tool(
+  "assign_escalation",
+  "Asigna un escalamiento a un agente (status → ASSIGNED).",
+  {
+    id: z.string().describe("ID del escalamiento"),
+    assignedTo: z.string().optional().describe("Email del agente (default: el del API key)"),
+  },
+  async ({ id, assignedTo }) => {
+    try {
+      const r = await postCrm({ intent: "assign_escalation", id, assignedTo });
+      return ok({ assigned: true, escalation: r.escalation });
+    } catch (e) {
+      return fail(e);
+    }
+  }
+);
+
+server.tool(
+  "resolve_escalation",
+  "Marca un escalamiento como resuelto (status → RESOLVED).",
+  { id: z.string().describe("ID del escalamiento") },
+  async ({ id }) => {
+    try {
+      const r = await postCrm({ intent: "resolve_escalation", id });
+      return ok({ resolved: true, escalation: r.escalation });
     } catch (e) {
       return fail(e);
     }

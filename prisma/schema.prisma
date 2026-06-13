@@ -329,6 +329,7 @@ model WhatsAppChannel {
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   phoneNumberId      String  @unique // ← clave de resolución del webhook
+  formmyIntegrationId String? @unique // id del Integration en Formmy (mapeo del webhook)
   businessAccountId  String?
   displayPhoneNumber String?
   accessToken        String // token WABA

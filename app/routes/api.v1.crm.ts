@@ -12,6 +12,24 @@ import {
   deleteDealNote,
   type DealInput,
 } from "server/crm.server";
+import {
+  listContacts,
+  createContact,
+  updateContact,
+  type ContactInput,
+} from "server/contacts.server";
+import {
+  listEscalations,
+  createEscalation,
+  assignEscalation,
+  resolveEscalation,
+  type EscalationInput,
+} from "server/escalations.server";
+import {
+  listConversations,
+  getConversationMessages,
+} from "server/conversations.server";
+import { setCoexistence, type CoexistenceAction } from "server/coexistence.server";
 import { createShareLink } from "server/share.server";
 import { logAction, type AuditActor } from "server/audit.server";
 
@@ -133,6 +151,132 @@ export async function action({ request }: Route.ActionArgs) {
         });
         return Response.json({ ok: true });
       }
+      // ─── Contactos ──────────────────────────────────────────────────
+      case "list_contacts": {
+        const items = await listContacts(workspaceId, {
+          search: body.search,
+          limit: body.limit,
+        });
+        return Response.json({ ok: true, items });
+      }
+      case "create_contact": {
+        const contact = await createContact(workspaceId, body.contact as ContactInput);
+        await logAction({
+          workspaceId,
+          actor,
+          action: "contact.created",
+          targetType: "contact",
+          targetId: contact.id,
+          targetLabel: contact.name ?? contact.phone ?? contact.id,
+        });
+        return Response.json({ ok: true, contact });
+      }
+      case "update_contact": {
+        const contact = await updateContact(
+          workspaceId,
+          body.contactId,
+          body.contact as ContactInput
+        );
+        await logAction({
+          workspaceId,
+          actor,
+          action: "contact.updated",
+          targetType: "contact",
+          targetId: contact.id,
+          targetLabel: contact.name ?? contact.phone ?? contact.id,
+        });
+        return Response.json({ ok: true, contact });
+      }
+
+      // ─── Conversaciones (lectura) ───────────────────────────────────
+      case "list_conversations": {
+        const items = await listConversations(workspaceId, {
+          search: body.search,
+          status: body.status,
+          limit: body.limit,
+        });
+        return Response.json({ ok: true, items });
+      }
+      case "list_messages": {
+        const items = await getConversationMessages(
+          workspaceId,
+          body.conversationId,
+          { limit: body.limit }
+        );
+        return Response.json({ ok: true, items });
+      }
+
+      // ─── Coexistencia (pausar / reanudar / tomar el chat) ───────────
+      case "pause_bot":
+      case "resume_bot":
+      case "takeover_conversation": {
+        const action: CoexistenceAction =
+          intent === "pause_bot"
+            ? "pause"
+            : intent === "resume_bot"
+              ? "resume"
+              : "takeover";
+        const result = await setCoexistence(
+          workspaceId,
+          body.conversationId,
+          action,
+          userEmail
+        );
+        await logAction({
+          workspaceId,
+          actor,
+          action: `conversation.${action}`,
+          targetType: "conversation",
+          targetId: body.conversationId,
+        });
+        return Response.json({ ok: true, conversation: result });
+      }
+
+      // ─── Escalamiento ───────────────────────────────────────────────
+      case "list_escalations": {
+        const items = await listEscalations(workspaceId, { status: body.status });
+        return Response.json({ ok: true, items });
+      }
+      case "create_escalation": {
+        const escalation = await createEscalation(
+          workspaceId,
+          body.escalation as EscalationInput
+        );
+        await logAction({
+          workspaceId,
+          actor,
+          action: "escalation.created",
+          targetType: "escalation",
+          targetId: escalation.id,
+          targetLabel: escalation.reason,
+        });
+        return Response.json({ ok: true, escalation });
+      }
+      case "assign_escalation": {
+        const assignee = body.assignedTo ?? userEmail;
+        const escalation = await assignEscalation(workspaceId, body.id, assignee);
+        await logAction({
+          workspaceId,
+          actor,
+          action: "escalation.assigned",
+          targetType: "escalation",
+          targetId: escalation.id,
+          targetLabel: assignee,
+        });
+        return Response.json({ ok: true, escalation });
+      }
+      case "resolve_escalation": {
+        const escalation = await resolveEscalation(workspaceId, body.id);
+        await logAction({
+          workspaceId,
+          actor,
+          action: "escalation.resolved",
+          targetType: "escalation",
+          targetId: escalation.id,
+        });
+        return Response.json({ ok: true, escalation });
+      }
+
       case "create_share_link": {
         // Dominio canónico para el link público (el agente pega a fly.dev, pero
         // queremos el dominio bonito). PUBLIC_BASE_URL > forwarded host > url.host.
