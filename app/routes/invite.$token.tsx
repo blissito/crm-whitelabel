@@ -27,7 +27,8 @@ export async function action({ request, params }: Route.ActionArgs) {
 
   try {
     const user = await acceptInvitation(params.token, { name: name || undefined, email, password });
-    return createUserSession(user.id, "/app/cuenta");
+    // La llave ya quedó cableada en el agente por el admin → directo al pipeline.
+    return createUserSession(user.id, "/app/pipeline");
   } catch (e) {
     return { error: e instanceof Error ? e.message : "No se pudo aceptar la invitación" };
   }
