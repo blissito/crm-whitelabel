@@ -42,6 +42,11 @@ type MessageItem = {
   role: string;
   origin: string | null;
   mediaType: string | null;
+  mediaMime: string | null;
+  mediaFilename: string | null;
+  mediaFileId: string | null;
+  isReaction: boolean;
+  reactionEmoji: string | null;
   createdAt: string;
 };
 
@@ -112,6 +117,51 @@ function Inbox({ conversations }: { conversations: ConversationItem[] }) {
   );
 }
 
+function MessageMedia({ message: m, fromUs }: { message: MessageItem; fromUs: boolean }) {
+  if (m.isReaction) {
+    return <span className="text-2xl">{m.reactionEmoji ?? "👍"}</span>;
+  }
+  if (!m.mediaType || !m.mediaFileId) return null;
+  const src = `/api/media/${m.mediaFileId}`;
+
+  switch (m.mediaType) {
+    case "image":
+    case "sticker":
+      return (
+        <a href={src} target="_blank" rel="noreferrer">
+          <img
+            src={src}
+            alt={m.mediaFilename ?? "imagen"}
+            className={cn(
+              "mb-1 rounded-lg",
+              m.mediaType === "sticker" ? "h-28 w-28 object-contain" : "max-h-64 w-auto"
+            )}
+          />
+        </a>
+      );
+    case "audio":
+      return <audio controls src={src} className="mb-1 w-56 max-w-full" />;
+    case "video":
+      return <video controls src={src} className="mb-1 max-h-64 w-auto rounded-lg" />;
+    case "document":
+      return (
+        <a
+          href={src}
+          target="_blank"
+          rel="noreferrer"
+          className={cn(
+            "mb-1 inline-flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium underline",
+            fromUs ? "text-white" : "text-brand-600"
+          )}
+        >
+          📄 {m.mediaFilename ?? "Documento"}
+        </a>
+      );
+    default:
+      return null;
+  }
+}
+
 function Thread({ conversation }: { conversation: ConversationItem }) {
   const [messages, setMessages] = useState<MessageItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -137,6 +187,8 @@ function Thread({ conversation }: { conversation: ConversationItem }) {
     };
   }, [conversation.id]);
 
+  const [draft, setDraft] = useState("");
+  const replyFetcher = useFetcher();
   const paused = conversation.pauseUntil && new Date(conversation.pauseUntil) > new Date();
   const coexist = (intent: string) =>
     fetcher.submit(
@@ -144,6 +196,16 @@ function Thread({ conversation }: { conversation: ConversationItem }) {
       { method: "post", action: "/api/v1/crm", encType: "application/json" }
     );
   const busy = fetcher.state !== "idle";
+
+  const sendReply = () => {
+    const text = draft.trim();
+    if (!text || replyFetcher.state !== "idle") return;
+    replyFetcher.submit(
+      { intent: "send_manual_response", conversationId: conversation.id, message: text },
+      { method: "post", action: "/api/v1/crm", encType: "application/json" }
+    );
+    setDraft("");
+  };
 
   return (
     <>
@@ -206,10 +268,8 @@ function Thread({ conversation }: { conversation: ConversationItem }) {
                     fromUs ? "bg-accent text-white" : "bg-white text-dark border border-outlines"
                   )}
                 >
-                  {m.mediaType && (
-                    <span className="mb-0.5 block text-[10px] opacity-70">[{m.mediaType}]</span>
-                  )}
-                  <p className="whitespace-pre-wrap">{m.content}</p>
+                  <MessageMedia message={m} fromUs={fromUs} />
+                  {m.content && <p className="whitespace-pre-wrap">{m.content}</p>}
                   <span className={cn("mt-0.5 block text-[10px]", fromUs ? "text-white/70" : "text-gray-400")}>
                     {fmtTime(m.createdAt)}
                   </span>
@@ -219,6 +279,34 @@ function Thread({ conversation }: { conversation: ConversationItem }) {
           })
         )}
       </div>
+
+      <footer className="border-t border-outlines bg-white px-4 py-3">
+        <div className="flex items-end gap-2">
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                sendReply();
+              }
+            }}
+            rows={1}
+            placeholder="Responder como operador… (Enter para enviar)"
+            className="input flex-1 resize-none"
+          />
+          <button
+            onClick={sendReply}
+            disabled={!draft.trim() || replyFetcher.state !== "idle"}
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-600 disabled:opacity-50"
+          >
+            Enviar
+          </button>
+        </div>
+        <p className="mt-1 text-[11px] text-gray-400">
+          Sale por WhatsApp vía Formmy y se registra como operador.
+        </p>
+      </footer>
     </>
   );
 }

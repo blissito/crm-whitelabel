@@ -1,21 +1,18 @@
 import { db } from "~/lib/db.server";
 
-export type CoexistenceAction = "pause" | "resume" | "takeover";
+// Plano B — control (CRM → Formmy). Spec: docs/crm-coregrid-integration.md.
+// POST {FORMMY_CONTROL_URL} Bearer CRM_CONTROL_SECRET con intents set_pause /
+// send_manual_response, scopeado por agentId + conversationId (de Formmy).
 
-function phoneFromSession(sessionId: string): string | null {
-  const m = sessionId.match(/^whatsapp_(.+)_[^_]+$/);
-  return m ? m[1] : null;
-}
+export type PauseMode = "30min" | "2h" | "until_tomorrow" | "permanent" | "resume";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** POST best-effort al endpoint de coexistencia de Formmy (pausar/tomar el chat).
- *  Configurable por env; si no está, solo se refleja el estado local.
- *  Contrato/URL exactos los provee Formmy — payload aislado aquí. */
-async function notifyFormmy(payload: Record<string, unknown>): Promise<void> {
-  const url = process.env.FORMMY_COEXISTENCE_URL;
-  const secret = process.env.FORMMY_WEBHOOK_SECRET;
-  if (!url || !secret) return; // sin endpoint configurado → solo estado local
+async function postControl(payload: Record<string, unknown>): Promise<void> {
+  const url =
+    process.env.FORMMY_CONTROL_URL ?? "https://formmy.app/api/v1/crm/control";
+  const secret = process.env.CRM_CONTROL_SECRET;
+  if (!secret) return; // sin secret aún → solo estado local (se cablea al cerrar secrets)
 
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
@@ -28,55 +25,89 @@ async function notifyFormmy(payload: Record<string, unknown>): Promise<void> {
         body: JSON.stringify(payload),
       });
       if (res.ok) return;
-      if (res.status < 500 && res.status !== 429) return; // 4xx no reintenta
-    } catch {
-      // reintentar
+      if (res.status < 500 && res.status !== 429) {
+        throw new Error(`control ${res.status}`);
+      }
+    } catch (e) {
+      if (attempt === 3) throw e;
     }
     if (attempt < 3) await sleep(1000 * 2 ** (attempt - 1));
   }
 }
 
-/** Cambia la coexistencia de una conversación: avisa a Formmy y refleja local. */
-export async function setCoexistence(
-  workspaceId: string,
-  conversationId: string,
-  action: CoexistenceAction,
-  actorEmail?: string | null
-) {
+/** Carga la conversación con la identidad necesaria para el plano B. */
+async function loadForControl(workspaceId: string, conversationId: string) {
   const convo = await db.conversation.findFirst({
     where: { id: conversationId, workspaceId },
-    include: { channel: { select: { formmyIntegrationId: true, phoneNumberId: true } } },
+    include: { channel: { select: { formmyIntegrationId: true } } },
   });
   if (!convo) throw new Error("Conversación no encontrada");
+  const agentId = convo.channel?.formmyIntegrationId ?? null;
+  const externalId = convo.externalConversationId ?? null;
+  return { convo, agentId, externalId };
+}
 
-  const phone = phoneFromSession(convo.sessionId);
-  await notifyFormmy({
-    phone_number: phone,
-    integration_id: convo.channel?.formmyIntegrationId ?? null,
-    phone_number_id: convo.channel?.phoneNumberId ?? null,
-    action,
+/** Pausa/reanuda al agente IA (coexistencia) y refleja el estado local. */
+export async function setPause(
+  workspaceId: string,
+  conversationId: string,
+  pauseMode: PauseMode,
+  actorEmail?: string | null
+) {
+  const { convo, agentId, externalId } = await loadForControl(workspaceId, conversationId);
+
+  await postControl({
+    agentId,
+    conversationId: externalId,
+    intent: "set_pause",
+    pauseMode,
   });
 
-  const now = new Date();
+  const now = Date.now();
+  const minutes: Record<PauseMode, number | null> = {
+    "30min": 30,
+    "2h": 120,
+    until_tomorrow: 18 * 60,
+    permanent: null,
+    resume: null,
+  };
   const data =
-    action === "pause"
-      ? {
+    pauseMode === "resume"
+      ? { manualMode: false, pauseUntil: null, pauseReason: null }
+      : {
           manualMode: true,
-          pauseUntil: new Date(now.getTime() + convo.pauseDurationMin * 60_000),
-          pauseReason: actorEmail ? `pausado por ${actorEmail}` : "pausado",
-        }
-      : action === "takeover"
-        ? {
-            manualMode: true,
-            pauseUntil: null,
-            assignedTo: actorEmail ?? convo.assignedTo,
-            pauseReason: actorEmail ? `tomado por ${actorEmail}` : "tomado",
-          }
-        : { manualMode: false, pauseUntil: null, pauseReason: null }; // resume
+          pauseUntil:
+            minutes[pauseMode] != null
+              ? new Date(now + (minutes[pauseMode] as number) * 60_000)
+              : null,
+          pauseReason: `manual_${pauseMode}${actorEmail ? ` · ${actorEmail}` : ""}`,
+        };
 
   return db.conversation.update({
-    where: { id: conversationId },
+    where: { id: convo.id },
     data,
     select: { id: true, manualMode: true, pauseUntil: true },
   });
+}
+
+/** Responde como operador (el mensaje sale por WhatsApp vía Formmy). El eco
+ *  vuelve por el plano A con role "operator" — no lo insertamos local (dedupe). */
+export async function sendManualResponse(
+  workspaceId: string,
+  conversationId: string,
+  message: string,
+  actorEmail?: string | null
+) {
+  const text = message?.trim();
+  if (!text) throw new Error("El mensaje está vacío");
+  const { agentId, externalId } = await loadForControl(workspaceId, conversationId);
+
+  await postControl({
+    agentId,
+    conversationId: externalId,
+    intent: "send_manual_response",
+    message: text,
+  });
+
+  return { ok: true, sentBy: actorEmail ?? null };
 }

@@ -61,7 +61,7 @@ const fail = (e) => ({
 
 const server = new McpServer({
   name: "coregrid-crm",
-  version: "0.4.0",
+  version: "0.5.0",
 });
 
 server.tool(
@@ -342,6 +342,23 @@ server.tool(
     try {
       const r = await postCrm({ intent: "takeover_conversation", conversationId });
       return ok({ takenOver: true, conversation: r.conversation });
+    } catch (e) {
+      return fail(e);
+    }
+  }
+);
+
+server.tool(
+  "send_manual_response",
+  "Responde como operador humano en una conversación: el mensaje sale por WhatsApp (vía Formmy). Útil tras pausar/tomar el chat.",
+  {
+    conversationId: z.string(),
+    message: z.string().describe("Texto a enviar al cliente"),
+  },
+  async ({ conversationId, message }) => {
+    try {
+      await postCrm({ intent: "send_manual_response", conversationId, message });
+      return ok({ sent: true });
     } catch (e) {
       return fail(e);
     }

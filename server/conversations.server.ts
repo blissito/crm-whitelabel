@@ -19,6 +19,11 @@ export type MessageItem = {
   role: string;
   origin: string | null;
   mediaType: string | null;
+  mediaMime: string | null;
+  mediaFilename: string | null;
+  mediaFileId: string | null;
+  isReaction: boolean;
+  reactionEmoji: string | null;
   createdAt: string;
 };
 
@@ -95,6 +100,11 @@ export async function getConversationMessages(
     role: m.role,
     origin: m.origin,
     mediaType: m.mediaType,
+    mediaMime: m.mediaMime,
+    mediaFilename: m.mediaFilename,
+    mediaFileId: m.mediaFileId,
+    isReaction: !!m.isReaction,
+    reactionEmoji: m.reactionEmoji,
     createdAt: m.createdAt.toISOString(),
   }));
 }

@@ -115,6 +115,9 @@ model Conversation {
   tags   String  @default("[]") // [{label,color,comment?,createdAt,createdBy?}]
   estado String? // {label,color,setAt,setBy?}
 
+  // id estable de la Conversation en Formmy (para el plano B de control).
+  externalConversationId String?
+
   workspaceId String
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
@@ -329,7 +332,7 @@ model WhatsAppChannel {
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   phoneNumberId      String  @unique // ← clave de resolución del webhook
-  formmyIntegrationId String? @unique // id del Integration en Formmy (mapeo del webhook)
+  formmyIntegrationId String? @unique // agentId de Formmy (tenant key del mirror/control)
   businessAccountId  String?
   displayPhoneNumber String?
   accessToken        String // token WABA

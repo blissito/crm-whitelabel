@@ -29,7 +29,11 @@ import {
   listConversations,
   getConversationMessages,
 } from "server/conversations.server";
-import { setCoexistence, type CoexistenceAction } from "server/coexistence.server";
+import {
+  setPause,
+  sendManualResponse,
+  type PauseMode,
+} from "server/coexistence.server";
 import { createShareLink } from "server/share.server";
 import { logAction, type AuditActor } from "server/audit.server";
 
@@ -206,30 +210,49 @@ export async function action({ request }: Route.ActionArgs) {
         return Response.json({ ok: true, items });
       }
 
-      // ─── Coexistencia (pausar / reanudar / tomar el chat) ───────────
+      // ─── Coexistencia (plano B: pausar / reanudar / tomar / operador) ─
       case "pause_bot":
       case "resume_bot":
       case "takeover_conversation": {
-        const action: CoexistenceAction =
+        // pause_bot → pausa temporal (default 30min); takeover → permanente;
+        // resume_bot → devuelve control al agente IA.
+        const pauseMode: PauseMode =
           intent === "pause_bot"
-            ? "pause"
-            : intent === "resume_bot"
-              ? "resume"
-              : "takeover";
-        const result = await setCoexistence(
+            ? ((body.pauseMode as PauseMode) ?? "30min")
+            : intent === "takeover_conversation"
+              ? "permanent"
+              : "resume";
+        const result = await setPause(
           workspaceId,
           body.conversationId,
-          action,
+          pauseMode,
           userEmail
         );
         await logAction({
           workspaceId,
           actor,
-          action: `conversation.${action}`,
+          action: `conversation.${intent === "resume_bot" ? "resumed" : "paused"}`,
+          targetType: "conversation",
+          targetId: body.conversationId,
+          targetLabel: pauseMode,
+        });
+        return Response.json({ ok: true, conversation: result });
+      }
+      case "send_manual_response": {
+        const result = await sendManualResponse(
+          workspaceId,
+          body.conversationId,
+          body.message,
+          userEmail
+        );
+        await logAction({
+          workspaceId,
+          actor,
+          action: "conversation.operator_reply",
           targetType: "conversation",
           targetId: body.conversationId,
         });
-        return Response.json({ ok: true, conversation: result });
+        return Response.json({ ok: true, sentBy: result.sentBy });
       }
 
       // ─── Escalamiento ───────────────────────────────────────────────

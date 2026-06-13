@@ -1,74 +1,93 @@
 import { db } from "~/lib/db.server";
 import { MessageRole, MessageOrigin } from "~/lib/enums";
 
-// Evento de mensaje que Formmy reenvía (copia fire-and-forget, una vía).
-// Parser tolerante: aceptamos varios nombres de campo por robustez.
-export type FormmyMessageEvent = {
-  message_id?: string;
-  messageId?: string;
-  jid?: string;
-  sender?: string; // teléfono del cliente
-  phone?: string;
-  sender_name?: string;
-  name?: string;
-  content?: string;
-  text?: string;
-  is_from_me?: boolean;
-  manual_mode?: boolean;
-  paused_until?: string | null;
-  integration_id?: string;
-  phone_number_id?: string;
-  phoneNumberId?: string;
-  media?: {
-    type?: string;
-    mime_type?: string;
-    mimeType?: string;
-    filename?: string;
-  } | null;
+// Payload normalizado del mirror de Formmy (plano A — fire-and-forget, una vía).
+// Spec: docs/crm-coregrid-integration.md.
+export type MirrorMedia = {
+  type?: string;
+  mime?: string;
+  filename?: string | null;
+  fileId?: string | null;
+  url?: string | null;
 };
 
-const DEDUP_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 días
+export type MirrorEvent = {
+  event?: string;
+  agentId?: string; // tenant key
+  agentSlug?: string;
+  conversationId?: string; // id estable en Formmy
+  sessionId?: string; // "whatsapp_<phone>_<channelId>"
+  channelId?: string;
+  contact?: { phone?: string; waJid?: string; name?: string | null };
+  message?: {
+    id?: string;
+    externalMessageId?: string | null;
+    role?: "user" | "assistant" | "operator" | "assistant_blocked";
+    content?: string;
+    media?: MirrorMedia | null;
+    location?: unknown;
+    contacts?: unknown;
+    reaction?: { emoji?: string; toMessageId?: string | null } | null;
+    createdAt?: string;
+  };
+  coexistence?: {
+    paused?: boolean;
+    pauseUntil?: string | null;
+    pauseReason?: string | null;
+  };
+};
 
-function digitsOf(s: string | undefined | null): string | null {
-  if (!s) return null;
-  // "formmy_<phone>@s.whatsapp.net" / "521555...@c.us" / "+52 1 555…"
-  const m = s.replace(/^formmy_/, "").match(/\d{6,}/);
-  return m ? m[0] : null;
+export type IngestResult =
+  | "ingested"
+  | "duplicate"
+  | "no_channel"
+  | "ignored"
+  | "invalid";
+
+const DEDUP_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+// role normalizado de Formmy → (MessageRole, origin) del CRM.
+function mapRole(role: string | undefined): { role: string; origin: string | null } | null {
+  switch (role) {
+    case "user":
+      return { role: MessageRole.USER, origin: null };
+    case "assistant":
+      return { role: MessageRole.ASSISTANT, origin: null };
+    case "operator":
+      return { role: MessageRole.ASSISTANT, origin: MessageOrigin.OPERATOR_DASHBOARD };
+    case "assistant_blocked":
+      return null; // draft bloqueado: se ignora
+    default:
+      return { role: MessageRole.USER, origin: null };
+  }
 }
 
-export type IngestResult = "ingested" | "duplicate" | "no_channel" | "invalid";
-
-/** Resuelve el workspace por el id de Formmy o el phoneNumberId WABA. */
-async function resolveChannel(ev: FormmyMessageEvent) {
-  const intId = ev.integration_id;
-  const phoneNumberId = ev.phone_number_id ?? ev.phoneNumberId;
-  if (!intId && !phoneNumberId) return null;
+/** Resuelve el canal/workspace por agentId (tenant key) o, en su defecto, channelId. */
+async function resolveChannel(ev: MirrorEvent) {
+  const ors = [];
+  if (ev.agentId) ors.push({ formmyIntegrationId: ev.agentId });
+  if (ev.channelId) ors.push({ phoneNumberId: ev.channelId });
+  if (ors.length === 0) return null;
   return db.whatsAppChannel.findFirst({
-    where: {
-      OR: [
-        ...(intId ? [{ formmyIntegrationId: intId }] : []),
-        ...(phoneNumberId ? [{ phoneNumberId }] : []),
-      ],
-    },
+    where: { OR: ors },
     select: { id: true, workspaceId: true },
   });
 }
 
-/** Ingesta idempotente de un evento de mensaje de Formmy. Nunca lanza: devuelve
- *  un estado para que el webhook responda 200 siempre (fire-and-forget). */
-export async function ingestFormmyMessage(
-  ev: FormmyMessageEvent
-): Promise<IngestResult> {
+/** Ingesta idempotente de un evento del mirror. Nunca lanza: devuelve un estado
+ *  para que el endpoint responda 2xx siempre (fire-and-forget). */
+export async function ingestMirrorEvent(ev: MirrorEvent): Promise<IngestResult> {
   try {
-    const messageId = ev.message_id ?? ev.messageId;
-    const content = ev.content ?? ev.text ?? "";
-    const phone = digitsOf(ev.sender ?? ev.phone ?? ev.jid);
-    if (!phone) return "invalid";
+    const msg = ev.message;
+    if (!msg) return "invalid";
 
-    // Dedup por id externo de mensaje.
-    if (messageId) {
+    const mapped = mapRole(msg.role);
+    if (!mapped) return "ignored"; // assistant_blocked
+
+    const dedupeKey = msg.externalMessageId || msg.id || null;
+    if (dedupeKey) {
       const seen = await db.processedWebhook.findUnique({
-        where: { externalId: messageId },
+        where: { externalId: dedupeKey },
         select: { id: true },
       });
       if (seen) return "duplicate";
@@ -77,47 +96,50 @@ export async function ingestFormmyMessage(
     const channel = await resolveChannel(ev);
     if (!channel) return "no_channel";
 
-    if (messageId) {
+    const phone = ev.contact?.phone ?? null;
+    const sessionId =
+      ev.sessionId || (phone ? `whatsapp_${phone}_${channel.id}` : null);
+    if (!sessionId) return "invalid";
+
+    if (dedupeKey) {
       await db.processedWebhook.create({
         data: {
-          externalId: messageId,
-          type: ev.is_from_me ? "echo" : "message",
-          phoneNumberId: ev.phone_number_id ?? ev.phoneNumberId ?? "",
+          externalId: dedupeKey,
+          type: msg.role ?? "message",
+          phoneNumberId: ev.channelId ?? "",
           expiresAt: new Date(Date.now() + DEDUP_TTL_MS),
         },
       });
     }
 
-    const sessionId = `whatsapp_${phone}_${channel.workspaceId}`;
-    const name = ev.sender_name ?? ev.name ?? null;
-    const isFromMe = !!ev.is_from_me;
+    const name = ev.contact?.name ?? null;
+    const cx = ev.coexistence;
+    const cxData = cx
+      ? {
+          manualMode: !!cx.paused,
+          pauseUntil: cx.pauseUntil ? new Date(cx.pauseUntil) : null,
+          pauseReason: cx.pauseReason ?? null,
+        }
+      : {};
 
     const convo = await db.conversation.upsert({
       where: { sessionId },
       create: {
         sessionId,
+        externalConversationId: ev.conversationId ?? null,
         workspaceId: channel.workspaceId,
         channelId: channel.id,
         name,
         status: "ACTIVE",
         messageCount: 1,
-        ...(isFromMe && { lastEchoAt: new Date() }),
-        ...(ev.manual_mode != null && { manualMode: ev.manual_mode }),
-        ...(typeof ev.paused_until === "string" && {
-          pauseUntil: new Date(ev.paused_until),
-        }),
+        ...cxData,
       },
       update: {
         updatedAt: new Date(),
         messageCount: { increment: 1 },
+        ...(ev.conversationId ? { externalConversationId: ev.conversationId } : {}),
         ...(name ? { name } : {}),
-        ...(isFromMe && { lastEchoAt: new Date() }),
-        ...(ev.manual_mode != null && { manualMode: ev.manual_mode }),
-        ...(typeof ev.paused_until === "string"
-          ? { pauseUntil: new Date(ev.paused_until) }
-          : ev.paused_until === null
-            ? { pauseUntil: null }
-            : {}),
+        ...cxData,
       },
       select: { id: true },
     });
@@ -125,20 +147,24 @@ export async function ingestFormmyMessage(
     await db.message.create({
       data: {
         conversationId: convo.id,
-        content,
-        role: isFromMe ? MessageRole.ASSISTANT : MessageRole.USER,
-        origin: isFromMe ? MessageOrigin.OPERATOR_PHONE : null,
-        externalMessageId: messageId ?? null,
-        ...(ev.media && {
-          mediaType: ev.media.type ?? null,
-          mediaMime: ev.media.mime_type ?? ev.media.mimeType ?? null,
-          mediaFilename: ev.media.filename ?? null,
+        content: msg.content ?? "",
+        role: mapped.role,
+        origin: mapped.origin,
+        externalMessageId: dedupeKey,
+        isReaction: msg.reaction ? true : undefined,
+        reactionEmoji: msg.reaction?.emoji ?? undefined,
+        reactionToMsgId: msg.reaction?.toMessageId ?? undefined,
+        ...(msg.media && {
+          mediaType: msg.media.type ?? null,
+          mediaMime: msg.media.mime ?? null,
+          mediaFilename: msg.media.filename ?? null,
+          mediaFileId: msg.media.fileId ?? null,
         }),
       },
     });
 
     return "ingested";
   } catch {
-    return "invalid"; // best-effort; el webhook responde 200 igualmente
+    return "invalid"; // best-effort; el endpoint responde 2xx igualmente
   }
 }
