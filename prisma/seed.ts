@@ -1,5 +1,4 @@
 import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcryptjs";
 
 const db = new PrismaClient();
 
@@ -71,28 +70,13 @@ async function main() {
   });
   if (apiKey) console.log(`   API key configurada para MCP`);
 
-  const email = process.env.SEED_ADMIN_EMAIL || "admin@coregrid.com.mx";
-  // Password del admin desde env (Fly secret en prod). Sin env: default local.
-  const adminPassword = process.env.SEED_ADMIN_PASSWORD;
-  const passwordHash = await bcrypt.hash(adminPassword || "dev-local-change-me", 12);
-  await db.user.upsert({
-    where: { email },
-    // Si hay env, rota el password en cada deploy (no se hardcodea en el repo).
-    update: adminPassword ? { passwordHash } : {},
-    create: {
-      email,
-      name: "Admin",
-      passwordHash,
-      role: "OWNER",
-      workspaceId: workspace.id,
-    },
-  });
+  // Sin usuario admin sembrado: las cuentas se crean por signup (/register).
+  // El workspace existe para anclar la apiKey que usan los agentes (ghosty).
 
   await seedDemoDeals(workspace.id);
 
   console.log("✅ Seed completo");
   console.log(`   Workspace: ${workspace.name} (${workspace.id})`);
-  console.log(`   Admin: ${email}`);
 }
 
 // Oportunidades de ejemplo realistas para CoreGrid (soporte IT/Apple),
