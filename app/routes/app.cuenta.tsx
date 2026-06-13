@@ -125,14 +125,14 @@ export default function Cuenta({ loaderData }: Route.ComponentProps) {
         <p className="mt-1 text-sm text-gray-500">
           Pega esto en el chat de tu agente (Ghosty) para conectar el CRM.
         </p>
-        <CopyBlock value={mcpConfig} className="mt-4" />
+        <CopyBlock value={mcpCommand} className="mt-4" />
 
-        {/* Comando CLI en segundo plano (clientes tipo Claude Code) */}
+        {/* Config manual (mcp.json) en segundo plano */}
         <details className="mt-3 text-sm">
           <summary className="cursor-pointer text-gray-500 hover:text-gray-700">
-            ¿Usas un cliente CLI? Comando directo
+            ¿Config manual? (mcp.json)
           </summary>
-          <CopyBlock value={mcpCommand} className="mt-2" />
+          <CopyBlock value={mcpConfig} className="mt-2" />
         </details>
 
         {/* Cuadrito descriptivo del paquete + link a npm */}
@@ -196,15 +196,18 @@ function CopyRow({ value, className = "" }: { value: string; className?: string 
 function CopyBlock({ value, className = "" }: { value: string; className?: string }) {
   const { copied, copy } = useCopy();
   return (
-    <div className={`relative ${className}`}>
-      <button
-        onClick={() => copy(value)}
-        className="absolute right-2 top-2 inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-white/20"
-      >
-        {copied ? <HiCheck className="h-3.5 w-3.5" /> : <HiClipboard className="h-3.5 w-3.5" />}
-        {copied ? "Copiado" : "Copiar"}
-      </button>
-      <pre className="overflow-x-auto rounded-lg bg-dark p-4 font-mono text-xs text-white/90">
+    <div className={`overflow-hidden rounded-lg bg-dark ${className}`}>
+      {/* Barra superior fija: el botón no se encima del texto al scrollear. */}
+      <div className="flex justify-end border-b border-white/10 px-2 py-1.5">
+        <button
+          onClick={() => copy(value)}
+          className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-white/80 hover:bg-white/10 hover:text-white"
+        >
+          {copied ? <HiCheck className="h-3.5 w-3.5 text-success" /> : <HiClipboard className="h-3.5 w-3.5" />}
+          {copied ? "Copiado" : "Copiar"}
+        </button>
+      </div>
+      <pre className="overflow-x-auto p-4 font-mono text-xs text-white/90">
         {value}
       </pre>
     </div>

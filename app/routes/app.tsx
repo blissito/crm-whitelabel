@@ -36,10 +36,10 @@ const NAV = [
   { to: "/app/conversaciones", label: "Conversaciones", Icon: HiOutlineChatBubbleLeftRight },
   { to: "/app/contactos", label: "Contactos", Icon: HiOutlineUsers },
   { to: "/app/escalaciones", label: "Escalaciones", Icon: HiOutlineArrowTopRightOnSquare },
+  { to: "/app/integraciones", label: "Integraciones", Icon: HiOutlinePuzzlePiece },
 ];
 
 const SECONDARY = [
-  { to: "/app/integraciones", label: "Integraciones", Icon: HiOutlinePuzzlePiece },
   { to: "/app/equipo", label: "Equipo", Icon: HiOutlineUserGroup },
   { to: "/app/cuenta", label: "Mi cuenta", Icon: HiOutlineKey },
 ];
