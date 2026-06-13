@@ -46,6 +46,7 @@ const INTEGRATIONS: Integration[] = [
   { name: "Stripe", desc: "Pagos con tarjeta y suscripciones", Icon: SiStripe, color: "#635BFF", status: "soon" },
   { name: "Conekta", desc: "Pagos en México (OXXO, SPEI, tarjeta)", Icon: SiConekta, color: "#0A2540", status: "soon" },
   { name: "Kommo", desc: "Migra tu CRM de WhatsApp", color: "#3CB39E", status: "soon" },
+  { name: "Facturama", desc: "Facturación CFDI 4.0 (SAT)", color: "#109D8E", status: "soon" },
   { name: "Odoo", desc: "ERP y facturación", Icon: SiOdoo, color: "#714B67", status: "soon" },
   { name: "Shopify", desc: "Pedidos y catálogo de tu tienda", Icon: SiShopify, color: "#96BF48", status: "soon" },
   { name: "HubSpot", desc: "Sincroniza contactos y deals", Icon: SiHubspot, color: "#FF7A59", status: "soon" },

@@ -45,8 +45,18 @@ export async function loader({ request }: Route.LoaderArgs) {
 
 export async function action({ request }: Route.ActionArgs) {
   const { user } = await requireWorkspace(request);
+  const dbUser = await db.user.findUnique({
+    where: { id: user.id },
+    select: { apiKey: true },
+  });
   const apiKey = generateApiKey();
-  await db.user.update({ where: { id: user.id }, data: { apiKey } });
+  // Regenera la llave que se muestra: la personal si existe; si no y es
+  // admin, la del tablero (la que ya usan los agentes).
+  if (dbUser?.apiKey || !isAdmin(user)) {
+    await db.user.update({ where: { id: user.id }, data: { apiKey } });
+  } else {
+    await db.workspace.update({ where: { id: user.workspaceId }, data: { apiKey } });
+  }
   return { ok: true };
 }
 
@@ -112,10 +122,12 @@ export default function Cuenta({ loaderData }: Route.ComponentProps) {
             className="inline-flex items-center gap-2 rounded-lg border border-outlines px-4 py-2 text-sm font-semibold text-gray-600 transition hover:bg-surface disabled:opacity-60"
           >
             <HiArrowPath className={busy ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
-            {apiKey ? "Regenerar llave" : "Generar llave personal"}
+            {effectiveKey ? "Regenerar llave" : "Generar llave"}
           </button>
           <span className="ml-3 text-xs text-gray-400">
-            Genera una llave personal nueva para tu agente.
+            {effectiveKey
+              ? "Regenerar invalida la llave actual; vuelve a pegarla en tu agente."
+              : "Genera una llave nueva para tu agente."}
           </span>
         </Form>
       </section>
