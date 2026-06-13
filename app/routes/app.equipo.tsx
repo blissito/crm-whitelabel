@@ -62,6 +62,7 @@ export async function action({ request }: Route.ActionArgs) {
         workspaceName: ws?.name ?? "el tablero",
         inviteUrl: `${proto}://${host}/invite/${token}`,
         invitedBy: user.name ?? user.email,
+        baseUrl: `${proto}://${host}`,
       });
     }
     await logAction({
