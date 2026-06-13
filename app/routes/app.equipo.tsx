@@ -9,6 +9,9 @@ import {
   createInvitation,
   revokeInvitation,
 } from "server/team.server";
+import { sendInviteEmail } from "server/email.server";
+import { logAction } from "server/audit.server";
+import { db } from "~/lib/db.server";
 
 export function meta() {
   return [{ title: "Equipo · CRM CoreGrid" }];
@@ -39,12 +42,39 @@ export async function action({ request }: Route.ActionArgs) {
   const form = await request.formData();
   const intent = String(form.get("intent"));
   if (intent === "invite") {
-    await createInvitation(user.workspaceId, {
+    const email = String(form.get("email") || "").trim() || undefined;
+    const token = await createInvitation(user.workspaceId, {
       role: "MEMBER",
-      email: String(form.get("email") || "") || undefined,
+      email,
       invitedByEmail: user.email,
     });
-  } else if (intent === "revoke") {
+    let emailSent = false;
+    if (email) {
+      const url = new URL(request.url);
+      const proto = request.headers.get("x-forwarded-proto") || url.protocol.replace(":", "");
+      const host = request.headers.get("x-forwarded-host") || url.host;
+      const ws = await db.workspace.findUnique({
+        where: { id: user.workspaceId },
+        select: { name: true },
+      });
+      emailSent = await sendInviteEmail({
+        to: email,
+        workspaceName: ws?.name ?? "el tablero",
+        inviteUrl: `${proto}://${host}/invite/${token}`,
+        invitedBy: user.name ?? user.email,
+      });
+    }
+    await logAction({
+      workspaceId: user.workspaceId,
+      actor: { type: "user", email: user.email, id: user.id, via: "dashboard" },
+      action: "member.invited",
+      targetType: "member",
+      targetLabel: email ?? "link",
+      metadata: { emailSent },
+    });
+    return { ok: true, emailSent: email ? emailSent : null };
+  }
+  if (intent === "revoke") {
     await revokeInvitation(user.workspaceId, String(form.get("id")));
   }
   return { ok: true };
